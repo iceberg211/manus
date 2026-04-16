@@ -1,10 +1,10 @@
-# Manus — AI Agent Framework (LangGraph TypeScript)
+# OpenManus LangGraph TypeScript 重写
 
-基于 [OpenManus](https://github.com/mannaandpoem/OpenManus) 重写，使用 LangGraph 作为核心框架。
+本项目是 [OpenManus](https://github.com/mannaandpoem/OpenManus)（Python AI Agent 框架）的 TypeScript 重写，使用 LangGraph 作为核心框架。
 
-- **设计文档**: `docs/design.md`
-- **改进清单**: `IMPROVEMENTS.md`
-- **原始 Python 参考**: [OpenManus](https://github.com/mannaandpoem/OpenManus) `app/` 目录
+- **原始源码**: `../app/` 目录（Python）
+- **设计文档**: `../design-langgraph-ts.md` — 每次开发会话开始时必须先读此文档
+- **改进清单**: `IMPROVEMENTS.md` — 原始缺陷和改进项（跟随迁移执行）
 
 ## 必须调用的 Skill
 
@@ -19,8 +19,8 @@
 
 每个实施阶段遵循以下流程：
 
-1. **读设计文档** — `docs/design.md` 对应章节
-2. **读原始 Python 源码** — 对应的 `OpenManus/app/` 源文件
+1. **读设计文档** — `../design-langgraph-ts.md` 对应章节
+2. **读原始 Python 源码** — 对应的 `../app/` 源文件
 3. **调用 LangGraph Skill** — 写图/状态/节点代码前
 4. **实现** — 将 Python 逻辑翻译为 TypeScript LangGraph
 5. **测试** — `npx tsx src/test-graph.ts` 或写专项测试
@@ -37,7 +37,7 @@
 | 常量 | 统一放 `config/constants.ts`，不在工具文件里写魔数 |
 | 日志 | 使用 `logger` (from `utils/logger.ts`)，禁止 `console.log` |
 | 错误处理 | 工具返回错误字符串不 throw；意外异常用 `utils/errors.ts` 类型 |
-| 行为保留 | 见 `docs/design.md` Appendix B（10 个必须保留的微妙行为）|
+| 行为保留 | 见 `../design-langgraph-ts.md` Appendix B（10 个必须保留的微妙行为）|
 | Zod schema | 不用 `.optional()`，用 `.default()` 避免 OpenAI API 警告 |
 
 ## 核心架构决策
@@ -56,30 +56,30 @@
 
 | 组件 | Python 源文件 |
 |------|-------------|
-| Agent 基类 | `OpenManus/app/agent/base.py`、`OpenManus/app/agent/react.py` |
-| 工具调用 | `OpenManus/app/agent/toolcall.py` |
-| Manus Agent | `OpenManus/app/agent/manus.py` |
-| Browser Agent | `OpenManus/app/agent/browser.py` |
-| SWE Agent | `OpenManus/app/agent/swe.py` |
-| 数据分析 Agent | `OpenManus/app/agent/data_analysis.py` |
-| SandboxManus | `OpenManus/app/agent/sandbox_agent.py` |
-| MCPAgent | `OpenManus/app/agent/mcp.py` |
-| Planning Flow | `OpenManus/app/flow/planning.py`、`OpenManus/app/flow/base.py` |
-| Planning Tool | `OpenManus/app/tool/planning.py` |
-| 所有工具 | `OpenManus/app/tool/*.py` |
-| 沙箱工具集 | `OpenManus/app/tool/sandbox/sb_shell_tool.py`、`sb_browser_tool.py`、`sb_files_tool.py`、`sb_vision_tool.py` |
-| 图表可视化 | `OpenManus/app/tool/chart_visualization/` |
-| 提示词 | `OpenManus/app/prompt/*.py` |
-| LLM 接口 | `OpenManus/app/llm.py` |
-| Bedrock 客户端 | `OpenManus/app/bedrock.py` |
-| 配置系统 | `OpenManus/app/config.py` |
-| 沙箱系统 | `OpenManus/app/sandbox/core/sandbox.py`、`terminal.py`、`manager.py` |
-| 文件操作 | `OpenManus/app/tool/file_operators.py` |
-| 日志 | `OpenManus/app/logger.py`、`OpenManus/app/utils/logger.py` |
-| 异常 | `OpenManus/app/exceptions.py` |
-| 搜索引擎 | `OpenManus/app/tool/search/*.py` |
-| MCP 客户端 | `OpenManus/app/tool/mcp.py` |
-| MCP 服务端 | `OpenManus/app/mcp/server.py` |
-| Crawl4AI | `OpenManus/app/tool/crawl4ai.py` |
-| A2A 协议 | `OpenManus/protocol/a2a/app/` |
-| Daytona | `OpenManus/app/daytona/sandbox.py`、`tool_base.py` |
+| Agent 基类 | `../app/agent/base.py`、`../app/agent/react.py` |
+| 工具调用 | `../app/agent/toolcall.py` |
+| Manus Agent | `../app/agent/manus.py` |
+| Browser Agent | `../app/agent/browser.py` |
+| SWE Agent | `../app/agent/swe.py` |
+| 数据分析 Agent | `../app/agent/data_analysis.py` |
+| SandboxManus | `../app/agent/sandbox_agent.py` |
+| MCPAgent | `../app/agent/mcp.py` |
+| Planning Flow | `../app/flow/planning.py`、`../app/flow/base.py` |
+| Planning Tool | `../app/tool/planning.py` |
+| 所有工具 | `../app/tool/*.py` |
+| 沙箱工具集 | `../app/tool/sandbox/sb_shell_tool.py`、`sb_browser_tool.py`、`sb_files_tool.py`、`sb_vision_tool.py` |
+| 图表可视化 | `../app/tool/chart_visualization/` |
+| 提示词 | `../app/prompt/*.py` |
+| LLM 接口 | `../app/llm.py` |
+| Bedrock 客户端 | `../app/bedrock.py` |
+| 配置系统 | `../app/config.py` |
+| 沙箱系统 | `../app/sandbox/core/sandbox.py`、`terminal.py`、`manager.py` |
+| 文件操作 | `../app/tool/file_operators.py` |
+| 日志 | `../app/logger.py`、`../app/utils/logger.py` |
+| 异常 | `../app/exceptions.py` |
+| 搜索引擎 | `../app/tool/search/*.py` |
+| MCP 客户端 | `../app/tool/mcp.py` |
+| MCP 服务端 | `../app/mcp/server.py` |
+| Crawl4AI | `../app/tool/crawl4ai.py` |
+| A2A 协议 | `../protocol/a2a/app/` |
+| Daytona | `../app/daytona/sandbox.py`、`tool_base.py` |
