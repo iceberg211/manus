@@ -151,6 +151,27 @@ function shouldContinue(state): "tools" | "human_review" | "__end__" {
 
 ---
 
+## 工具层
+
+上面只展示了 bash 作为示例。实际项目有 **18 个工具**，是 Agent 能力的核心来源。
+
+**完整工具文档见 [tools.md](./tools.md)**，涵盖：
+- 每个工具的设计原理、实现策略、关键约束
+- bash 的持久会话 + 哨兵模式
+- str_replace_editor 的唯一性检查 + FileOperator 抽象
+- browser_use 的 DOM 索引系统（LLM 通过数字索引操作页面元素）
+- web_search 的多引擎降级链
+- crawl4ai 的 Playwright JS 渲染 vs fetch 静态双模式
+- planningTool 的 7 命令 CRUD（LLM 可动态修改执行计划）
+- MCP 动态工具加载（运行时从外部服务器发现新工具）
+- VMind 智能图表流水线
+- 4 个沙箱工具（tmux 会话、路径安全文件操作、截图 OCR）
+- 不同 Agent 类型的工具组合策略
+
+建议在理解完核心循环后，重点阅读 tools.md 的 bash、browser_use、planningTool 三个工具。
+
+---
+
 ## 进阶概念
 
 ### Human-in-the-Loop (HITL)
