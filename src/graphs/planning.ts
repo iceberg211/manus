@@ -221,7 +221,7 @@ function executeStepNode(agents: Record<string, AgentEntry>) {
       const failedPlan = { ...plan, steps: [...plan.steps] };
       failedPlan.steps[state.currentStepIndex] = {
         ...step,
-        status: "blocked" as const,
+        status: "failed" as const,
         notes: `No agent found for type '${state.executorType}'`,
       };
       return {
@@ -385,16 +385,20 @@ export async function createPlanningFlow(options: PlanningFlowOptions) {
 
   const compiled = graph.compile(compileOptions);
 
-  // Wrap invoke/stream to automatically inject recursionLimit
-  const origInvoke = compiled.invoke.bind(compiled);
-  const origStream = compiled.stream.bind(compiled);
-
-  compiled.invoke = (input: any, config?: any) => {
-    return origInvoke(input, { recursionLimit: planRecursionLimit, ...config });
-  };
-  compiled.stream = (input: any, config?: any) => {
-    return origStream(input, { recursionLimit: planRecursionLimit, ...config });
-  };
-
-  return compiled;
+  // Wrap invoke/stream via Proxy so we inject recursionLimit without mutating
+  // the compiled instance (prototype methods like getState keep working).
+  return new Proxy(compiled, {
+    get(target, prop) {
+      if (prop === "invoke") {
+        return (input: any, config?: any) =>
+          target.invoke(input, { recursionLimit: planRecursionLimit, ...config });
+      }
+      if (prop === "stream") {
+        return (input: any, config?: any) =>
+          target.stream(input, { recursionLimit: planRecursionLimit, ...config });
+      }
+      const value = Reflect.get(target, prop, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
 }

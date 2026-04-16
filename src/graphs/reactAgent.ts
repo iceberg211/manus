@@ -154,7 +154,14 @@ export interface ReactAgentOptions {
   maxObserve?: number;
   /** Max graph iterations. Default: 50. */
   recursionLimit?: number;
-  /** Enable checkpointer for persistence/HITL. */
+  /**
+   * Enable checkpointer for persistence/HITL.
+   *
+   * NOTE: HITL (interrupt/resume) requires a checkpointer. Callers that need
+   * HITL MUST set this to `true` explicitly. We no longer auto-enable it when
+   * `enableHumanInTheLoop` is true, because every invocation with a new
+   * thread_id accumulates checkpoints in MemorySaver and leaks memory.
+   */
   checkpointer?: boolean;
   /** Include ask_human tool. Default: true. */
   enableHumanInTheLoop?: boolean;
@@ -263,30 +270,34 @@ export function buildReactAgent(options: ReactAgentOptions) {
     // inject_unstuck → think
     .addEdge("inject_unstuck", "think");
 
-  // Compile — checkpointer required for HITL interrupt()
+  // Compile — checkpointer required for HITL interrupt().
   // NOTE: recursionLimit is NOT a compile() option in LangGraph TS 0.2.x.
   // It must be passed via invoke/stream config (see wrapper below).
-  const needsCheckpointer = useCheckpointer || enableHumanInTheLoop;
   const compileOptions: {
     checkpointer?: MemorySaver;
   } = {};
-  if (needsCheckpointer) {
+  if (useCheckpointer) {
     compileOptions.checkpointer = new MemorySaver();
   }
 
   const compiled = graph.compile(compileOptions);
 
-  // Wrap invoke/stream to automatically inject recursionLimit into config.
-  // This ensures the limit is always applied without requiring every caller to remember.
-  const origInvoke = compiled.invoke.bind(compiled);
-  const origStream = compiled.stream.bind(compiled);
-
-  compiled.invoke = (input: any, config?: RunnableConfig) => {
-    return origInvoke(input, { recursionLimit, ...config });
-  };
-  compiled.stream = (input: any, config?: any) => {
-    return origStream(input, { recursionLimit, ...config });
-  };
-
-  return compiled;
+  // Wrap invoke/stream via Proxy to inject recursionLimit without mutating the
+  // compiled graph (which would clobber own properties and confuse prototypes).
+  // For non-wrapped methods (getState, updateState, etc.) we bind `this` to the
+  // target so prototype-resolved methods still see the original receiver.
+  return new Proxy(compiled, {
+    get(target, prop) {
+      if (prop === "invoke") {
+        return (input: any, config?: RunnableConfig) =>
+          target.invoke(input, { recursionLimit, ...config });
+      }
+      if (prop === "stream") {
+        return (input: any, config?: any) =>
+          target.stream(input, { recursionLimit, ...config });
+      }
+      const value = Reflect.get(target, prop, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
 }

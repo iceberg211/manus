@@ -13,6 +13,7 @@ import { createSWEAgent } from "./graphs/swe.js";
 import { createDataAnalysisAgent } from "./graphs/dataAnalysis.js";
 import { browserManager } from "./tools/browserUse.js";
 import { bashSession } from "./tools/bash.js";
+import { cleanupCrawler } from "./tools/crawl4ai.js";
 
 async function main() {
   const prompt =
@@ -22,22 +23,26 @@ async function main() {
   console.log(`\n--- OpenManus Planning Flow (LangGraph TS) ---`);
   console.log(`Task: ${prompt}\n`);
 
+  // Sub-executors inside a planning flow don't own HITL — the planning layer
+  // does. Disabling ask_human here prevents sub-graphs from calling interrupt()
+  // (which would need a checkpointer they intentionally don't have, to avoid
+  // per-step thread checkpoints accumulating forever in MemorySaver).
   const flow = await createPlanningFlow({
     agents: {
       manus: {
         name: "manus",
         description: "A versatile agent that can solve various tasks using multiple tools",
-        graph: await createManusAgent(),
+        graph: await createManusAgent({ enableHumanInTheLoop: false }),
       },
       swe: {
         name: "swe",
         description: "An autonomous AI programmer for code editing and bash commands",
-        graph: await createSWEAgent(),
+        graph: await createSWEAgent({ enableHumanInTheLoop: false }),
       },
       data: {
         name: "data",
         description: "A data analysis agent for analyzing data and creating visualizations",
-        graph: await createDataAnalysisAgent(),
+        graph: await createDataAnalysisAgent({ enableHumanInTheLoop: false }),
       },
     },
     defaultAgent: "manus",
@@ -62,8 +67,17 @@ async function main() {
       );
     }
   } finally {
-    await browserManager.cleanup();
-    bashSession.stop();
+    const tasks: Array<[string, () => unknown | Promise<unknown>]> = [
+      ["browserManager", () => browserManager.cleanup()],
+      ["bashSession", () => bashSession.stop()],
+      ["crawl4ai", () => cleanupCrawler()],
+    ];
+    const results = await Promise.allSettled(tasks.map(([, fn]) => fn()));
+    results.forEach((r, i) => {
+      if (r.status === "rejected") {
+        console.error(`[cleanup] ${tasks[i][0]} failed:`, r.reason);
+      }
+    });
   }
 }
 

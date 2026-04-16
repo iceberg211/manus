@@ -13,6 +13,7 @@
  * The agent graph is invoked via LangGraph's .invoke() method.
  */
 import { HumanMessage } from "@langchain/core/messages";
+import { Command } from "@langchain/langgraph";
 import { createManusAgent } from "../graphs/manus.js";
 import { createThreadConfig } from "../config/persistence.js";
 import { logger } from "../utils/logger.js";
@@ -41,9 +42,11 @@ export interface AgentCard {
 export interface A2ATask {
   id: string;
   contextId: string;
-  status: "pending" | "running" | "completed" | "failed";
+  status: "pending" | "running" | "input_required" | "completed" | "failed";
   input: string;
   output?: string;
+  /** Populated when status=input_required — the question posed via ask_human. */
+  pendingQuestion?: string;
   createdAt: number;
   completedAt?: number;
 }
@@ -138,22 +141,72 @@ export const AGENT_CARD: AgentCard = {
 export class A2AServer {
   private taskStore = new TaskStore();
   private agent: Awaited<ReturnType<typeof createManusAgent>> | null = null;
+  /**
+   * Map stable contextId → LangGraph thread_id so multiple invokes with the
+   * same contextId resume the same thread. Without this, every call would be a
+   * fresh thread and HITL resume would be impossible.
+   */
+  private contextThreads = new Map<string, string>();
 
   private async getAgent() {
     if (!this.agent) {
-      this.agent = await createManusAgent();
+      // HITL requires a checkpointer.
+      this.agent = await createManusAgent({ checkpointer: true });
     }
     return this.agent;
   }
 
-  /** Handle an A2A invoke request. */
+  private threadIdFor(contextId: string): string {
+    let threadId = this.contextThreads.get(contextId);
+    if (!threadId) {
+      threadId = randomUUID();
+      this.contextThreads.set(contextId, threadId);
+    }
+    return threadId;
+  }
+
+  /** Extract pending interrupt value (ask_human question) from graph state. */
+  private async getPendingInterrupt(
+    agent: Awaited<ReturnType<typeof createManusAgent>>,
+    config: ReturnType<typeof createThreadConfig>,
+  ): Promise<string | null> {
+    const state = await (agent as any).getState(config);
+    const tasks = state?.tasks as
+      | Array<{ interrupts?: Array<{ value?: any }> }>
+      | undefined;
+    if (!tasks) return null;
+    for (const t of tasks) {
+      for (const i of t.interrupts ?? []) {
+        const v = i?.value;
+        if (v && typeof v === "object" && typeof v.question === "string") {
+          return v.question;
+        }
+        if (typeof v === "string") return v;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Handle an A2A invoke request.
+   *
+   * If `resume` is provided, resumes the interrupted task identified by
+   * `contextId` with the supplied answer (HITL continuation). Otherwise
+   * starts a new task.
+   *
+   * Returns `requireUserInput=true` + the pending question when the graph
+   * interrupts via ask_human; the caller should invoke again with `resume`.
+   */
   async invoke(
     query: string,
     contextId?: string,
+    resume?: string,
   ): Promise<{
     isTaskComplete: boolean;
     requireUserInput: boolean;
     content: string;
+    taskId: string;
+    contextId: string;
   }> {
     const ctx = contextId ?? randomUUID();
     const task = this.taskStore.create(ctx, query);
@@ -161,13 +214,30 @@ export class A2AServer {
 
     try {
       const agent = await this.getAgent();
-      const config = createThreadConfig();
-      const result = await agent.invoke(
-        { messages: [new HumanMessage(query)] },
-        config,
-      );
+      const config = createThreadConfig(this.threadIdFor(ctx));
 
-      const lastMsg = result.messages[result.messages.length - 1];
+      const input = resume !== undefined
+        ? new Command({ resume })
+        : { messages: [new HumanMessage(query)] };
+
+      const result = await agent.invoke(input, config);
+
+      const pendingQuestion = await this.getPendingInterrupt(agent, config);
+      if (pendingQuestion) {
+        this.taskStore.update(task.id, {
+          status: "input_required",
+          pendingQuestion,
+        });
+        return {
+          isTaskComplete: false,
+          requireUserInput: true,
+          content: pendingQuestion,
+          taskId: task.id,
+          contextId: ctx,
+        };
+      }
+
+      const lastMsg = result.messages?.[result.messages.length - 1];
       const content =
         typeof lastMsg?.content === "string"
           ? lastMsg.content
@@ -179,7 +249,13 @@ export class A2AServer {
         completedAt: Date.now(),
       });
 
-      return { isTaskComplete: true, requireUserInput: false, content };
+      return {
+        isTaskComplete: true,
+        requireUserInput: false,
+        content,
+        taskId: task.id,
+        contextId: ctx,
+      };
     } catch (e: any) {
       this.taskStore.update(task.id, { status: "failed", output: e.message });
       throw e;
@@ -232,8 +308,8 @@ export async function startA2AServer(
 
     app.post("/invoke", async (req: any, res: any) => {
       try {
-        const { query, contextId } = req.body;
-        const result = await server.invoke(query, contextId);
+        const { query, contextId, resume } = req.body ?? {};
+        const result = await server.invoke(query, contextId, resume);
         res.json(result);
       } catch (e: any) {
         res.status(500).json({ error: e.message });

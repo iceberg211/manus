@@ -27,6 +27,8 @@ export interface ManusOptions {
   extraTools?: StructuredToolInterface[];
   /** 启用 checkpointer。 */
   checkpointer?: boolean;
+  /** 启用 ask_human 工具（HITL）。默认 true。设为 false 可避免子图 interrupt。 */
+  enableHumanInTheLoop?: boolean;
 }
 
 export async function createManusAgent(options: ManusOptions = {}) {
@@ -36,6 +38,7 @@ export async function createManusAgent(options: ManusOptions = {}) {
     workDir = process.cwd(),
     extraTools = [],
     checkpointer = false,
+    enableHumanInTheLoop = true,
   } = options;
 
   const llm = model ?? await createLLM(llmProfile);
@@ -48,5 +51,6 @@ export async function createManusAgent(options: ManusOptions = {}) {
     maxObserve: 10000,
     recursionLimit: 40,
     checkpointer,
+    enableHumanInTheLoop,
   });
 }

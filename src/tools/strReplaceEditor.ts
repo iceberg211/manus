@@ -248,8 +248,8 @@ export const strReplaceEditor = tool(
       return `Error: The path ${path} is not an absolute path.`;
     }
 
-    // S-3: Path boundary check — reject paths outside workspace
-    const boundaryError = checkPathBoundary(path);
+    // S-3: Path boundary check — reject paths outside workspace (now symlink-aware)
+    const boundaryError = await checkPathBoundary(path);
     if (boundaryError) {
       return `Error: ${boundaryError}`;
     }

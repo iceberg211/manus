@@ -14,10 +14,16 @@ export interface DataAnalysisAgentOptions {
   model?: BaseChatModel;
   llmProfile?: string;
   workDir?: string;
+  checkpointer?: boolean;
+  enableHumanInTheLoop?: boolean;
 }
 
 export async function createDataAnalysisAgent(options: DataAnalysisAgentOptions = {}) {
-  const { workDir = process.cwd() } = options;
+  const {
+    workDir = process.cwd(),
+    checkpointer = false,
+    enableHumanInTheLoop = true,
+  } = options;
   const llm = options.model ?? await createLLM(options.llmProfile);
 
   return buildReactAgent({
@@ -27,5 +33,7 @@ export async function createDataAnalysisAgent(options: DataAnalysisAgentOptions 
     nextStepPrompt: DATA_ANALYSIS_NEXT_STEP_PROMPT,
     maxObserve: 15000,
     recursionLimit: 40,
+    checkpointer,
+    enableHumanInTheLoop,
   });
 }

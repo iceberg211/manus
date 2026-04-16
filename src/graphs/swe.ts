@@ -12,10 +12,18 @@ import { SWE_SYSTEM_PROMPT } from "../prompts/swe.js";
 export interface SWEAgentOptions {
   model?: BaseChatModel;
   llmProfile?: string;
+  checkpointer?: boolean;
+  enableHumanInTheLoop?: boolean;
 }
 
 export async function createSWEAgent(options: SWEAgentOptions = {}) {
-  const llm = options.model ?? await createLLM(options.llmProfile);
+  const {
+    model,
+    llmProfile,
+    checkpointer = false,
+    enableHumanInTheLoop = true,
+  } = options;
+  const llm = model ?? await createLLM(llmProfile);
 
   return buildReactAgent({
     model: llm,
@@ -23,5 +31,7 @@ export async function createSWEAgent(options: SWEAgentOptions = {}) {
     systemPrompt: SWE_SYSTEM_PROMPT,
     nextStepPrompt: "",
     recursionLimit: 40,
+    checkpointer,
+    enableHumanInTheLoop,
   });
 }

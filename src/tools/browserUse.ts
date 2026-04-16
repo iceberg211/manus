@@ -284,12 +284,21 @@ class BrowserManager {
       const domState = this.domState ?? await this.refreshDom();
       const elements = domState.element_tree.clickable_elements_to_string();
 
+      let tabCount = 1;
+      try {
+        const ctx = typeof page.context === "function" ? page.context() : null;
+        const pages = ctx && typeof ctx.pages === "function" ? ctx.pages() : null;
+        if (Array.isArray(pages) && pages.length > 0) tabCount = pages.length;
+      } catch {
+        // fall back to 1 if the underlying driver shape differs
+      }
+
       return {
         screenshot: screenshot.toString("base64"),
         url: page.url(),
         title: await page.title(),
         interactiveElements: elements,
-        tabCount: 1,
+        tabCount,
       };
     } catch {
       return null;

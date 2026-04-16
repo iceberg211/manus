@@ -5,6 +5,7 @@ import { createInterface } from "readline";
 import { createManusAgent } from "./graphs/manus.js";
 import { browserManager } from "./tools/browserUse.js";
 import { bashSession } from "./tools/bash.js";
+import { cleanupCrawler } from "./tools/crawl4ai.js";
 import { createThreadConfig } from "./config/persistence.js";
 
 /** Prompt user for input (for HITL resume). */
@@ -19,7 +20,7 @@ function promptUser(question: string): Promise<string> {
 }
 
 async function runWithUpdates(prompt: string) {
-  const agent = await createManusAgent({ workDir: process.cwd() });
+  const agent = await createManusAgent({ workDir: process.cwd(), checkpointer: true });
   const config = createThreadConfig();
 
   let input: any = { messages: [new HumanMessage(prompt)] };
@@ -92,7 +93,7 @@ async function runWithUpdates(prompt: string) {
 }
 
 async function runWithTokens(prompt: string) {
-  const agent = await createManusAgent({ workDir: process.cwd() });
+  const agent = await createManusAgent({ workDir: process.cwd(), checkpointer: true });
   const config = createThreadConfig();
 
   let input: any = { messages: [new HumanMessage(prompt)] };
@@ -135,7 +136,7 @@ async function runWithTokens(prompt: string) {
 }
 
 async function runInvoke(prompt: string) {
-  const agent = await createManusAgent({ workDir: process.cwd() });
+  const agent = await createManusAgent({ workDir: process.cwd(), checkpointer: true });
   const config = createThreadConfig();
 
   const result = await agent.invoke(
@@ -178,9 +179,26 @@ async function main() {
     }
     console.log("\n--- Execution Complete ---");
   } finally {
-    await browserManager.cleanup();
-    bashSession.stop();
+    await runCleanup();
   }
+}
+
+/**
+ * Run all cleanup tasks independently so a single failure doesn't prevent
+ * others from running. Each failure is logged but not rethrown.
+ */
+async function runCleanup(): Promise<void> {
+  const tasks: Array<[string, () => unknown | Promise<unknown>]> = [
+    ["browserManager", () => browserManager.cleanup()],
+    ["bashSession", () => bashSession.stop()],
+    ["crawl4ai", () => cleanupCrawler()],
+  ];
+  const results = await Promise.allSettled(tasks.map(([, fn]) => fn()));
+  results.forEach((r, i) => {
+    if (r.status === "rejected") {
+      console.error(`[cleanup] ${tasks[i][0]} failed:`, r.reason);
+    }
+  });
 }
 
 main().catch((e) => {

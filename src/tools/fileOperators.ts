@@ -9,8 +9,8 @@
  * Improvement S-3: Path boundary check — all file operations validate that
  * the target path is within the configured workspace root.
  */
-import { readFile, writeFile, stat, access } from "fs/promises";
-import { resolve } from "path";
+import { readFile, writeFile, stat, access, realpath } from "fs/promises";
+import { resolve, dirname, basename, join } from "path";
 import { execSync } from "child_process";
 import { SANDBOX_CLIENT } from "../sandbox/docker.js";
 import { getConfig, WORKSPACE_ROOT } from "../config/index.js";
@@ -35,30 +35,65 @@ export interface FileOperator {
 // ---------------------------------------------------------------------------
 
 /**
+ * Resolve a path following symlinks as far as possible.
+ *
+ * For paths that don't exist yet (e.g., a file we're about to create), we walk
+ * up ancestors until we find one that does exist, realpath() that, then
+ * re-attach the remaining tail. This means a symlink anywhere in the ancestry
+ * is followed, closing the "workspace/link → /etc" escape.
+ */
+async function resolveRealPath(targetPath: string): Promise<string> {
+  const abs = resolve(targetPath);
+  try {
+    return await realpath(abs);
+  } catch {
+    // Path (or a leaf) doesn't exist — walk up to find a real ancestor.
+    let current = abs;
+    const tail: string[] = [];
+    while (true) {
+      const parent = dirname(current);
+      if (parent === current) return abs; // reached root, nothing resolvable
+      tail.unshift(basename(current));
+      try {
+        const realParent = await realpath(parent);
+        return join(realParent, ...tail);
+      } catch {
+        current = parent;
+      }
+    }
+  }
+}
+
+function isWithin(child: string, parent: string): boolean {
+  if (child === parent) return true;
+  // Use OS separator-aware boundary to avoid `/workspace_evil` passing `/workspace`.
+  const sep = parent.endsWith("/") ? "" : "/";
+  return child.startsWith(parent + sep);
+}
+
+/**
  * Validate that a path is within the allowed workspace boundary.
- * Prevents path traversal attacks (e.g., editing /etc/passwd).
+ * Prevents path traversal attacks (e.g., editing /etc/passwd) and symlink
+ * escapes (a workspace symlink pointing at /etc would otherwise pass).
  *
  * @param targetPath - The path to validate (must be absolute)
  * @param workspace - The allowed root directory
  * @returns null if valid, error message if invalid
  */
-export function checkPathBoundary(
+export async function checkPathBoundary(
   targetPath: string,
   workspace?: string,
-): string | null {
+): Promise<string | null> {
   const root = workspace ?? WORKSPACE_ROOT;
-  const resolved = resolve(targetPath);
-  const resolvedRoot = resolve(root);
-  const cwd = resolve(process.cwd());
 
-  // Allow paths within workspace
-  if (resolved === resolvedRoot || resolved.startsWith(resolvedRoot + "/")) return null;
+  const resolvedTarget = await resolveRealPath(targetPath);
+  const resolvedRoot = await resolveRealPath(root);
+  const resolvedCwd = await resolveRealPath(process.cwd());
+  const resolvedTmp = await resolveRealPath("/tmp");
 
-  // Allow paths within current working directory (agent's workDir)
-  if (resolved === cwd || resolved.startsWith(cwd + "/")) return null;
-
-  // Allow /tmp for temporary files
-  if (resolved === "/tmp" || resolved.startsWith("/tmp/")) return null;
+  if (isWithin(resolvedTarget, resolvedRoot)) return null;
+  if (isWithin(resolvedTarget, resolvedCwd)) return null;
+  if (isWithin(resolvedTarget, resolvedTmp)) return null;
 
   return `Path '${targetPath}' is outside the allowed workspace '${root}'. For security, file operations are restricted to the workspace directory.`;
 }
