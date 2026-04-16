@@ -217,7 +217,8 @@ function executeStepNode(agents: Record<string, AgentEntry>) {
     const agent = agents[state.executorType];
 
     if (!agent) {
-      // T-3: mark as failed, not silently skip
+      // 找不到匹配类型的 executor 标记为 failed（与 catch 分支一致），
+      // updatePlanNode 会根据 status 跳过 completed 覆盖。
       const failedPlan = { ...plan, steps: [...plan.steps] };
       failedPlan.steps[state.currentStepIndex] = {
         ...step,
@@ -235,8 +236,15 @@ function executeStepNode(agents: Record<string, AgentEntry>) {
     const planId = `active_plan`;
     planStorage.syncFromGraphState(planId, plan);
 
-    // Snapshot step texts before invoke to detect if LLM modified the plan
-    const preInvokeStepTexts = plan.steps.map((s) => s.text).join("\n");
+    // Snapshot step fingerprint (text + status + notes) before invoke so we
+    // can detect ANY modification by the LLM (not only added/removed/renamed
+    // steps). Without status/notes in the fingerprint, mark_step / set_notes
+    // calls via PlanningTool silently lose their effect here.
+    const fingerprint = (p: typeof plan) =>
+      p.steps
+        .map((s) => `${s.text}\x1f${s.status}\x1f${s.notes ?? ""}`)
+        .join("\n");
+    const preInvokeFingerprint = fingerprint(plan);
 
     // Build context prompt
     const planStatus = formatPlan(plan);
@@ -259,9 +267,9 @@ function executeStepNode(agents: Record<string, AgentEntry>) {
       // Check if LLM modified the plan via PlanningTool during execution
       const storagePlan = planStorage.getPlan(planId);
       if (storagePlan) {
-        const postInvokeStepTexts = storagePlan.steps.map((s) => s.text).join("\n");
-        if (postInvokeStepTexts !== preInvokeStepTexts) {
-          // LLM actually modified the plan structure — sync changes back to graph state
+        const postInvokeFingerprint = fingerprint(storagePlan);
+        if (postInvokeFingerprint !== preInvokeFingerprint) {
+          // LLM modified text/status/notes — sync back to graph state
           return {
             plan: planStorage.clonePlan(planId)!,
             stepResults: [resultText],

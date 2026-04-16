@@ -14,6 +14,7 @@ import { createDataAnalysisAgent } from "./graphs/dataAnalysis.js";
 import { browserManager } from "./tools/browserUse.js";
 import { bashSession } from "./tools/bash.js";
 import { cleanupCrawler } from "./tools/crawl4ai.js";
+import { planningTool } from "./tools/planningTool.js";
 
 async function main() {
   const prompt =
@@ -27,22 +28,27 @@ async function main() {
   // does. Disabling ask_human here prevents sub-graphs from calling interrupt()
   // (which would need a checkpointer they intentionally don't have, to avoid
   // per-step thread checkpoints accumulating forever in MemorySaver).
+  //
+  // Also inject planningTool so executor 的 stepPrompt 里承诺的 "planning tool"
+  // 是真工具（IMPROVEMENTS.md: PlanningTool 未挂到 executor agent）。
+  const sharedTools = [planningTool];
+
   const flow = await createPlanningFlow({
     agents: {
       manus: {
         name: "manus",
         description: "A versatile agent that can solve various tasks using multiple tools",
-        graph: await createManusAgent({ enableHumanInTheLoop: false }),
+        graph: await createManusAgent({ enableHumanInTheLoop: false, extraTools: sharedTools }),
       },
       swe: {
         name: "swe",
         description: "An autonomous AI programmer for code editing and bash commands",
-        graph: await createSWEAgent({ enableHumanInTheLoop: false }),
+        graph: await createSWEAgent({ enableHumanInTheLoop: false, extraTools: sharedTools }),
       },
       data: {
         name: "data",
         description: "A data analysis agent for analyzing data and creating visualizations",
-        graph: await createDataAnalysisAgent({ enableHumanInTheLoop: false }),
+        graph: await createDataAnalysisAgent({ enableHumanInTheLoop: false, extraTools: sharedTools }),
       },
     },
     defaultAgent: "manus",

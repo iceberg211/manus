@@ -19,8 +19,9 @@
  *                  └─no tools/terminate──→ END
  */
 import { StateGraph, START, END, MemorySaver } from "@langchain/langgraph";
+import type { BaseCheckpointSaver } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
-import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, SystemMessage, ToolMessage, trimMessages, type BaseMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { RunnableLambda, type RunnableConfig } from "@langchain/core/runnables";
@@ -29,6 +30,7 @@ import { AgentState, type AgentStateType } from "../state/agentState.js";
 import { createThinkNode } from "../nodes/think.js";
 import { checkStuck, injectUnstuck } from "../nodes/checkStuck.js";
 import { hasHumanRequest, humanReviewNode } from "../nodes/humanReview.js";
+import { prepareContextNode } from "../nodes/prepareContext.js";
 import { terminate } from "../tools/terminate.js";
 import { askHuman } from "../tools/askHuman.js";
 
@@ -73,23 +75,71 @@ function adaptMessagesForProvider(messages: BaseMessage[]): BaseMessage[] {
 
 /**
  * Wrap a model with message middleware:
- * 1. Prepend systemPrompt (if provided)
- * 2. Append nextStepPrompt as HumanMessage (if provided)
- * 3. Adapt AIMessages for non-OpenAI provider compatibility
+ * 1. Trim history to fit within maxInputTokens (A-1)
+ * 2. Prepend systemPrompt (if provided)
+ * 3. Append nextStepPrompt as HumanMessage (if provided)
+ * 4. Adapt AIMessages for non-OpenAI provider compatibility
  *
  * Returns a Runnable<BaseMessage[], AIMessage> — same interface as the model,
  * so the think node just calls model.invoke(state.messages).
+ *
+ * A-1: 长对话 token 截断。`trimMessages` 使用 strategy="last" 保留最近的消息，
+ * `startOn: "human"` 确保结果从一轮对话边界开始（避免单独的 AIMessage 开头造成
+ * provider 错误），`includeSystem: true` 保留 system prompt。未配置时不截断。
  */
 function wrapModelWithMiddleware(
   model: any,
-  opts: { systemPrompt?: string; nextStepPrompt?: string },
+  opts: {
+    systemPrompt?: string;
+    nextStepPrompt?: string;
+    maxInputTokens?: number;
+  },
 ) {
-  const { systemPrompt, nextStepPrompt } = opts;
+  const { systemPrompt, nextStepPrompt, maxInputTokens } = opts;
 
-  const preprocessor = RunnableLambda.from((messages: BaseMessage[]) => {
+  // token 预估：如果 model.getNumTokens 不存在就用简单字符数估算。
+  async function countTokens(msgs: BaseMessage[]): Promise<number> {
+    if (typeof (model as any).getNumTokens === "function") {
+      try {
+        const text = msgs.map((m) =>
+          typeof m.content === "string" ? m.content : JSON.stringify(m.content),
+        ).join("\n");
+        return await (model as any).getNumTokens(text);
+      } catch {
+        /* fall through */
+      }
+    }
+    // Fallback: ~4 chars per token
+    const total = msgs.reduce((sum, m) => {
+      const c = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+      return sum + c.length;
+    }, 0);
+    return Math.ceil(total / 4);
+  }
+
+  const preprocessor = RunnableLambda.from(async (messages: BaseMessage[]) => {
+    let history = messages;
+
+    if (maxInputTokens && maxInputTokens > 0) {
+      try {
+        history = await trimMessages(messages, {
+          maxTokens: maxInputTokens,
+          strategy: "last",
+          tokenCounter: countTokens,
+          startOn: "human",
+          includeSystem: true,
+          allowPartial: false,
+        });
+      } catch {
+        // trimMessages 对消息结构敏感（比如 orphan tool_call 会报错），
+        // 失败时退回原始消息，由 think 节点的 token-limit catch 兜底。
+        history = messages;
+      }
+    }
+
     const prepared: BaseMessage[] = [];
     if (systemPrompt) prepared.push(new SystemMessage(systemPrompt));
-    prepared.push(...messages);
+    prepared.push(...history);
     if (nextStepPrompt) prepared.push(new HumanMessage(nextStepPrompt));
     return adaptMessagesForProvider(prepared);
   });
@@ -130,10 +180,16 @@ function shouldContinue(
   return "tools";
 }
 
-/** After "tools": check stuck state, then back to think. */
-function afterTools(state: AgentStateType): "inject_unstuck" | "think" {
-  if (state.status === "finished") return "think";
-  return checkStuck(state);
+/**
+ * After "tools": check stuck state, then route to the entry node (either
+ * "think" directly or "prepare_context" → "think" when browser context is enabled).
+ */
+function makeAfterTools(entryNode: "think" | "prepare_context") {
+  return (state: AgentStateType): "inject_unstuck" | "think" | "prepare_context" => {
+    if (state.status === "finished") return entryNode;
+    const stuck = checkStuck(state);
+    return stuck === "think" ? entryNode : "inject_unstuck";
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -157,14 +213,30 @@ export interface ReactAgentOptions {
   /**
    * Enable checkpointer for persistence/HITL.
    *
-   * NOTE: HITL (interrupt/resume) requires a checkpointer. Callers that need
-   * HITL MUST set this to `true` explicitly. We no longer auto-enable it when
+   * - `false` (default): no checkpointer, no HITL support
+   * - `true`: use in-memory MemorySaver (dev only, lost on restart)
+   * - a `BaseCheckpointSaver` instance: production checkpointer (e.g. PostgresSaver)
+   *
+   * HITL (interrupt/resume) requires a checkpointer. Callers that need HITL
+   * MUST set this explicitly. We no longer auto-enable it when
    * `enableHumanInTheLoop` is true, because every invocation with a new
    * thread_id accumulates checkpoints in MemorySaver and leaks memory.
    */
-  checkpointer?: boolean;
+  checkpointer?: boolean | BaseCheckpointSaver;
   /** Include ask_human tool. Default: true. */
   enableHumanInTheLoop?: boolean;
+  /**
+   * A-6: 在 think 前注入浏览器上下文（URL、title、interactive elements、截图）。
+   * 仅当工具列表包含 browser_use 时建议开启。
+   * 节点内部会检测最近消息中是否使用过 browser_use — 未用时跳过注入。
+   */
+  browserContextEnabled?: boolean;
+  /**
+   * A-1: 最大输入 token 数。超过时会用 trimMessages 从末尾保留最近的消息。
+   * 未设置（或为 0）时不截断，长任务可能触发 token limit。
+   * 建议 < model context window - maxTokens reservation。
+   */
+  maxInputTokens?: number;
 }
 
 /**
@@ -187,6 +259,8 @@ export function buildReactAgent(options: ReactAgentOptions) {
     recursionLimit = 50,
     checkpointer: useCheckpointer = false,
     enableHumanInTheLoop = true,
+    browserContextEnabled = false,
+    maxInputTokens,
   } = options;
 
   // Build tool list
@@ -214,6 +288,7 @@ export function buildReactAgent(options: ReactAgentOptions) {
   const wrappedModel = wrapModelWithMiddleware(modelWithTools, {
     systemPrompt,
     nextStepPrompt,
+    maxInputTokens,
   });
 
   // Create nodes
@@ -247,37 +322,60 @@ export function buildReactAgent(options: ReactAgentOptions) {
     return result;
   };
 
-  // Build graph — RetryPolicy on think for transient LLM errors
-  const graph = new StateGraph(AgentState)
+  // Build graph — RetryPolicy on think for transient LLM errors.
+  // When browserContextEnabled=true, insert a `prepare_context` node before
+  // every entry into `think`, so the LLM sees the latest browser DOM state
+  // and screenshot. The node itself is a no-op when browser_use wasn't used
+  // recently, so the overhead is minimal.
+  const entryNode: "think" | "prepare_context" = browserContextEnabled
+    ? "prepare_context"
+    : "think";
+  const afterTools = makeAfterTools(entryNode);
+
+  let builder: any = new StateGraph(AgentState)
     .addNode("think", thinkNode, {
       retryPolicy: { maxAttempts: 3 },
     })
     .addNode("tools", truncatedToolNode)
     .addNode("inject_unstuck", injectUnstuck)
-    .addNode("human_review", humanReviewNode)
-    // START → think
-    .addEdge(START, "think")
+    .addNode("human_review", humanReviewNode);
+
+  if (browserContextEnabled) {
+    builder = builder.addNode("prepare_context", prepareContextNode);
+  }
+
+  builder = builder
+    // START → entry (prepare_context or think)
+    .addEdge(START, entryNode)
     // think → human_review / tools / END
     .addConditionalEdges("think", shouldContinue, [
       "human_review",
       "tools",
       END,
     ])
-    // human_review → think (after user responds via Command(resume=...))
-    .addEdge("human_review", "think")
-    // tools → check stuck → think or inject_unstuck
-    .addConditionalEdges("tools", afterTools, ["think", "inject_unstuck"])
-    // inject_unstuck → think
-    .addEdge("inject_unstuck", "think");
+    // human_review → entry (after user responds via Command(resume=...))
+    .addEdge("human_review", entryNode)
+    // tools → check stuck → entry or inject_unstuck
+    .addConditionalEdges("tools", afterTools, [entryNode, "inject_unstuck"])
+    // inject_unstuck → entry
+    .addEdge("inject_unstuck", entryNode);
+
+  if (browserContextEnabled) {
+    builder = builder.addEdge("prepare_context", "think");
+  }
+
+  const graph = builder;
 
   // Compile — checkpointer required for HITL interrupt().
   // NOTE: recursionLimit is NOT a compile() option in LangGraph TS 0.2.x.
   // It must be passed via invoke/stream config (see wrapper below).
   const compileOptions: {
-    checkpointer?: MemorySaver;
+    checkpointer?: BaseCheckpointSaver;
   } = {};
-  if (useCheckpointer) {
+  if (useCheckpointer === true) {
     compileOptions.checkpointer = new MemorySaver();
+  } else if (useCheckpointer && typeof useCheckpointer === "object") {
+    compileOptions.checkpointer = useCheckpointer;
   }
 
   const compiled = graph.compile(compileOptions);

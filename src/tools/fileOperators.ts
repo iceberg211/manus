@@ -9,11 +9,25 @@
  * Improvement S-3: Path boundary check — all file operations validate that
  * the target path is within the configured workspace root.
  */
-import { readFile, writeFile, stat, access, realpath } from "fs/promises";
-import { resolve, dirname, basename, join } from "path";
+import { readFile, writeFile, stat, access, realpath, readdir } from "fs/promises";
+import { resolve, dirname, basename, join, relative } from "path";
 import { execSync } from "child_process";
 import { SANDBOX_CLIENT } from "../sandbox/docker.js";
 import { getConfig, WORKSPACE_ROOT } from "../config/index.js";
+
+// ---------------------------------------------------------------------------
+// Shell quoting helpers (S-5)
+// ---------------------------------------------------------------------------
+
+/**
+ * Quote a string safely for use as a single POSIX shell argument.
+ * Wraps in single quotes and escapes existing single quotes using the
+ * classic `'\''` pattern. Prevents command injection via filenames that
+ * contain quotes, `$`, backticks, newlines, etc.
+ */
+export function shellQuote(s: string): string {
+  return `'${s.replace(/'/g, "'\\''")}'`;
+}
 
 // ---------------------------------------------------------------------------
 // Interface (matches Python's FileOperator Protocol)
@@ -24,6 +38,12 @@ export interface FileOperator {
   writeFile(path: string, content: string): Promise<void>;
   isDirectory(path: string): Promise<boolean>;
   exists(path: string): Promise<boolean>;
+  /**
+   * List directory entries up to `maxDepth` levels deep, excluding hidden
+   * (dotfile) entries. Returns absolute paths, one per line — compatible
+   * with the previous `find`-based viewer output.
+   */
+  listDirectory(path: string, maxDepth?: number): Promise<string[]>;
   runCommand(
     cmd: string,
     timeout?: number,
@@ -131,6 +151,34 @@ export class LocalFileOperator implements FileOperator {
     }
   }
 
+  async listDirectory(path: string, maxDepth = 2): Promise<string[]> {
+    // S-5: 纯 fs API，不 shell out 到 `find`，避免文件名注入
+    const results: string[] = [];
+
+    async function walk(dir: string, depth: number): Promise<void> {
+      if (depth > maxDepth) return;
+      let entries;
+      try {
+        entries = await readdir(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const entry of entries) {
+        // Skip hidden dotfiles (matches `-not -path '*/.*'` semantics)
+        if (entry.name.startsWith(".")) continue;
+        const full = join(dir, entry.name);
+        results.push(full);
+        if (entry.isDirectory()) {
+          await walk(full, depth + 1);
+        }
+      }
+    }
+
+    results.push(path);
+    await walk(path, 1);
+    return results;
+  }
+
   async runCommand(
     cmd: string,
     timeout = 120,
@@ -175,8 +223,9 @@ export class SandboxFileOperator implements FileOperator {
 
   async isDirectory(path: string): Promise<boolean> {
     await this.ensureSandbox();
+    // S-5: shellQuote prevents injection via filenames containing quotes/$/newlines
     const result = await SANDBOX_CLIENT.runCommand(
-      `test -d "${path}" && echo 'true' || echo 'false'`,
+      `test -d ${shellQuote(path)} && echo 'true' || echo 'false'`,
     );
     return result.stdout.trim() === "true";
   }
@@ -184,9 +233,17 @@ export class SandboxFileOperator implements FileOperator {
   async exists(path: string): Promise<boolean> {
     await this.ensureSandbox();
     const result = await SANDBOX_CLIENT.runCommand(
-      `test -e "${path}" && echo 'true' || echo 'false'`,
+      `test -e ${shellQuote(path)} && echo 'true' || echo 'false'`,
     );
     return result.stdout.trim() === "true";
+  }
+
+  async listDirectory(path: string, maxDepth = 2): Promise<string[]> {
+    await this.ensureSandbox();
+    // S-5: 所有动态值都 shellQuote；数字参数受 schema 限制不需要 quote
+    const cmd = `find ${shellQuote(path)} -maxdepth ${Math.max(1, Math.floor(maxDepth))} -not -path '*/\\.*'`;
+    const result = await SANDBOX_CLIENT.runCommand(cmd);
+    return result.stdout.split("\n").filter((l) => l.length > 0);
   }
 
   async runCommand(

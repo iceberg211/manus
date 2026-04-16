@@ -63,8 +63,9 @@ async function viewCommand(
       return "Error: The `view_range` parameter is not allowed when `path` points to a directory.";
     }
     try {
-      const result = await o.runCommand(`find "${path}" -maxdepth 2 -not -path '*/\\.*'`, 10);
-      return `Here's the files and directories up to 2 levels deep in ${path}, excluding hidden items:\n${result.stdout}`;
+      // S-5: 走 FileOperator.listDirectory（local 用 fs.readdir，sandbox 用 shellQuote 的 find）
+      const entries = await o.listDirectory(path, 2);
+      return `Here's the files and directories up to 2 levels deep in ${path}, excluding hidden items:\n${entries.join("\n")}`;
     } catch (e: any) {
       return `Error listing directory: ${e.message}`;
     }

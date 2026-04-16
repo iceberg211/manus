@@ -1,12 +1,37 @@
 import { HumanMessage } from "@langchain/core/messages";
 import { Command } from "@langchain/langgraph";
+import type { BaseCheckpointSaver } from "@langchain/langgraph";
 import { createInterface } from "readline";
 
 import { createManusAgent } from "./graphs/manus.js";
 import { browserManager } from "./tools/browserUse.js";
 import { bashSession } from "./tools/bash.js";
 import { cleanupCrawler } from "./tools/crawl4ai.js";
-import { createThreadConfig } from "./config/persistence.js";
+import { createThreadConfig, createProdCheckpointer } from "./config/persistence.js";
+import { logger } from "./utils/logger.js";
+
+/**
+ * A-3: 选择 checkpointer。
+ * - 如果设置了 LANGGRAPH_CHECKPOINT_PG 环境变量，用 PostgresSaver
+ * - 否则回退到 MemorySaver（传 true）
+ *
+ * PostgresSaver 的连接字符串格式：
+ *   postgresql://user:pass@localhost:5432/dbname
+ * 需要先安装：npm install @langchain/langgraph-checkpoint-postgres
+ */
+async function resolveCheckpointer(): Promise<boolean | BaseCheckpointSaver> {
+  const pgUrl = process.env.LANGGRAPH_CHECKPOINT_PG;
+  if (!pgUrl) return true; // MemorySaver fallback
+
+  try {
+    const cp = await createProdCheckpointer(pgUrl);
+    logger.info("Using PostgresSaver for checkpointing");
+    return cp;
+  } catch (e: any) {
+    logger.warn({ err: e.message }, "PostgresSaver init failed, falling back to MemorySaver");
+    return true;
+  }
+}
 
 /** Prompt user for input (for HITL resume). */
 function promptUser(question: string): Promise<string> {
@@ -19,8 +44,8 @@ function promptUser(question: string): Promise<string> {
   });
 }
 
-async function runWithUpdates(prompt: string) {
-  const agent = await createManusAgent({ workDir: process.cwd(), checkpointer: true });
+async function runWithUpdates(prompt: string, checkpointer: boolean | BaseCheckpointSaver) {
+  const agent = await createManusAgent({ workDir: process.cwd(), checkpointer });
   const config = createThreadConfig();
 
   let input: any = { messages: [new HumanMessage(prompt)] };
@@ -92,8 +117,8 @@ async function runWithUpdates(prompt: string) {
   }
 }
 
-async function runWithTokens(prompt: string) {
-  const agent = await createManusAgent({ workDir: process.cwd(), checkpointer: true });
+async function runWithTokens(prompt: string, checkpointer: boolean | BaseCheckpointSaver) {
+  const agent = await createManusAgent({ workDir: process.cwd(), checkpointer });
   const config = createThreadConfig();
 
   let input: any = { messages: [new HumanMessage(prompt)] };
@@ -135,8 +160,8 @@ async function runWithTokens(prompt: string) {
   }
 }
 
-async function runInvoke(prompt: string) {
-  const agent = await createManusAgent({ workDir: process.cwd(), checkpointer: true });
+async function runInvoke(prompt: string, checkpointer: boolean | BaseCheckpointSaver) {
+  const agent = await createManusAgent({ workDir: process.cwd(), checkpointer });
   const config = createThreadConfig();
 
   const result = await agent.invoke(
@@ -169,13 +194,15 @@ async function main() {
   );
   console.log("--- Execution Start ---\n");
 
+  const checkpointer = await resolveCheckpointer();
+
   try {
     if (mode === "--tokens") {
-      await runWithTokens(prompt);
+      await runWithTokens(prompt, checkpointer);
     } else if (mode === "--invoke") {
-      await runInvoke(prompt);
+      await runInvoke(prompt, checkpointer);
     } else {
-      await runWithUpdates(prompt);
+      await runWithUpdates(prompt, checkpointer);
     }
     console.log("\n--- Execution Complete ---");
   } finally {

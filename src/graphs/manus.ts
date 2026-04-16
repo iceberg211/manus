@@ -5,9 +5,11 @@
  */
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { StructuredToolInterface } from "@langchain/core/tools";
+import type { BaseCheckpointSaver } from "@langchain/langgraph";
 
 import { buildReactAgent } from "./reactAgent.js";
 import { createLLM } from "../config/llmFactory.js";
+import { getConfig } from "../config/index.js";
 import { bash } from "../tools/bash.js";
 import { codeExecute } from "../tools/codeExecute.js";
 import { strReplaceEditor } from "../tools/strReplaceEditor.js";
@@ -25,8 +27,8 @@ export interface ManusOptions {
   workDir?: string;
   /** 额外工具（如 MCP 动态工具）。 */
   extraTools?: StructuredToolInterface[];
-  /** 启用 checkpointer。 */
-  checkpointer?: boolean;
+  /** 启用 checkpointer。传 true 默认 MemorySaver；传实例用于 PostgresSaver 等。 */
+  checkpointer?: boolean | BaseCheckpointSaver;
   /** 启用 ask_human 工具（HITL）。默认 true。设为 false 可避免子图 interrupt。 */
   enableHumanInTheLoop?: boolean;
 }
@@ -43,6 +45,10 @@ export async function createManusAgent(options: ManusOptions = {}) {
 
   const llm = model ?? await createLLM(llmProfile);
 
+  // A-1: 从 config 读取 max_input_tokens，配合 trimMessages 避免长任务失败
+  const llmSettings = getConfig().llm[llmProfile ?? "default"] ?? getConfig().llm.default;
+  const maxInputTokens = llmSettings?.max_input_tokens;
+
   return buildReactAgent({
     model: llm,
     tools: [codeExecute, bash, browserUse, strReplaceEditor, webSearch, crawl4ai, ...extraTools],
@@ -52,5 +58,8 @@ export async function createManusAgent(options: ManusOptions = {}) {
     recursionLimit: 40,
     checkpointer,
     enableHumanInTheLoop,
+    maxInputTokens,
+    // A-6: Manus 集成 browser_use，开启上下文注入 — 只有最近用过浏览器时才真正注入
+    browserContextEnabled: true,
   });
 }
