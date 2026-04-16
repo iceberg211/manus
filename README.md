@@ -152,4 +152,4 @@ src/
 - **持久化**: 无 → Checkpointer（MemorySaver / PostgresSaver）
 - **LLM**: 自定义 LLM 类 → LangChain `initChatModel`（20+ provider）
 
-设计文档见 `../design-langgraph-ts.md`。
+设计文档见 `docs/design.md`。
