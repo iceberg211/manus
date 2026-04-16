@@ -1,0 +1,112 @@
+# OpenManus LangGraph TS Configuration
+# Copy this file to config.toml and fill in your API keys.
+
+# ============================================================
+# LLM Configuration
+# ============================================================
+# api_type controls which provider to use. Supported values:
+#   openai, anthropic, azure, bedrock, ollama, google, groq, mistral, deepseek, xai
+# Provider packages are loaded on demand — install the one you need:
+#   npm install @langchain/anthropic   (for anthropic)
+#   npm install @langchain/aws         (for bedrock)
+#   npm install @langchain/google-genai (for google)
+#   npm install @langchain/ollama      (for ollama)
+#   npm install @langchain/groq        (for groq)
+
+[llm]
+api_type = "openai"
+model = "gpt-4o"
+base_url = "https://api.openai.com/v1"
+api_key = "sk-your-key-here"
+max_tokens = 4096
+temperature = 0.0
+
+# --- Anthropic Claude ---
+# [llm]
+# api_type = "anthropic"
+# model = "claude-sonnet-4-20250514"
+# api_key = "sk-ant-..."
+# max_tokens = 8192
+# temperature = 0.0
+
+# --- Ollama (local) ---
+# [llm]
+# api_type = "ollama"
+# model = "llama3"
+# max_tokens = 4096
+# temperature = 0.0
+
+# --- AWS Bedrock ---
+# [llm]
+# api_type = "bedrock"
+# model = "anthropic.claude-3-sonnet"
+# max_tokens = 8192
+# temperature = 0.0
+
+# --- Azure OpenAI ---
+# [llm]
+# api_type = "azure"
+# model = "gpt-4o"
+# base_url = "https://your-endpoint.openai.azure.com/openai/deployments/your-deployment"
+# api_key = "your-azure-key"
+# api_version = "2024-08-01-preview"
+
+# Per-agent LLM overrides (optional)
+# [llm.manus]
+# model = "gpt-4o"
+#
+# [llm.data]
+# api_type = "anthropic"
+# model = "claude-sonnet-4-20250514"
+# api_key = "sk-ant-..."
+
+# ============================================================
+# Browser Configuration (optional)
+# ============================================================
+# [browser]
+# headless = false
+# disable_security = true
+# extra_chromium_args = []
+# chrome_instance_path = ""
+# wss_url = ""
+# cdp_url = ""
+
+# [browser.proxy]
+# server = "http://proxy-server:port"
+# username = ""
+# password = ""
+
+# ============================================================
+# Search Configuration (optional)
+# ============================================================
+# [search]
+# engine = "Google"
+# fallback_engines = ["DuckDuckGo", "Baidu", "Bing"]
+# retry_delay = 60
+# max_retries = 3
+# lang = "en"
+# country = "us"
+
+# ============================================================
+# Sandbox Configuration (optional, requires Docker)
+# ============================================================
+# [sandbox]
+# use_sandbox = false
+# image = "python:3.12-slim"
+# work_dir = "/workspace"
+# memory_limit = "512m"
+# cpu_limit = 1.0
+# timeout = 300
+# network_enabled = false
+
+# ============================================================
+# MCP Configuration (optional)
+# ============================================================
+[mcp]
+server_reference = "app.mcp.server"
+
+# ============================================================
+# Planning Flow Configuration (optional)
+# ============================================================
+[runflow]
+use_data_analysis_agent = false

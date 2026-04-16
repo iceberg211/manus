@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+/* Design tokens from ui-ux-pro-max: Dark Mode (OLED) + Fira Code/Fira Sans */
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+
+@theme {
+  --color-bg: #020617;
+  --color-surface: #0F172A;
+  --color-surface-2: #1E293B;
+  --color-border: #334155;
+  --color-muted: #64748B;
+  --color-text: #F8FAFC;
+  --color-text-secondary: #94A3B8;
+  --color-accent: #22C55E;
+  --color-accent-hover: #16A34A;
+  --color-primary: #3B82F6;
+  --color-primary-hover: #2563EB;
+  --color-danger: #EF4444;
+  --color-user-bubble: #1D4ED8;
+
+  --font-sans: 'Fira Sans', system-ui, sans-serif;
+  --font-mono: 'Fira Code', ui-monospace, monospace;
+}
+
+/* Scrollbar styling for dark theme */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--color-bg); }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
+
+/* Markdown prose in assistant messages */
+.prose-agent h1, .prose-agent h2, .prose-agent h3 {
+  color: var(--color-text);
+  font-weight: 600;
+  margin: 0.75em 0 0.25em;
+}
+.prose-agent h1 { font-size: 1.25rem; }
+.prose-agent h2 { font-size: 1.125rem; }
+.prose-agent h3 { font-size: 1rem; }
+.prose-agent p { margin: 0.5em 0; line-height: 1.65; }
+.prose-agent ul, .prose-agent ol { padding-left: 1.25em; margin: 0.5em 0; }
+.prose-agent li { margin: 0.2em 0; }
+.prose-agent code {
+  background: var(--color-surface);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+.prose-agent pre {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px;
+  overflow-x: auto;
+  margin: 0.75em 0;
+}
+.prose-agent pre code {
+  background: none;
+  padding: 0;
+}
+.prose-agent a { color: var(--color-primary); text-decoration: underline; }
+.prose-agent blockquote {
+  border-left: 3px solid var(--color-accent);
+  padding-left: 12px;
+  color: var(--color-text-secondary);
+  margin: 0.75em 0;
+}

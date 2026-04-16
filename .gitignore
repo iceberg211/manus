@@ -1,0 +1,11 @@
+node_modules/
+dist/
+web/node_modules/
+web/dist/
+*.log
+logs/
+.env
+.env.local
+workspace/*
+!workspace/.gitkeep
+config/config.toml

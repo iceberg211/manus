@@ -1,0 +1,52 @@
+/**
+ * Manus Agent Graph — General-purpose agent with all tools.
+ *
+ * Translated from: app/agent/manus.py (166 lines)
+ */
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import type { StructuredToolInterface } from "@langchain/core/tools";
+
+import { buildReactAgent } from "./reactAgent.js";
+import { createLLM } from "../config/llmFactory.js";
+import { bash } from "../tools/bash.js";
+import { codeExecute } from "../tools/codeExecute.js";
+import { strReplaceEditor } from "../tools/strReplaceEditor.js";
+import { webSearch } from "../tools/webSearch.js";
+import { browserUse } from "../tools/browserUse.js";
+import { crawl4ai } from "../tools/crawl4ai.js";
+import { MANUS_SYSTEM_PROMPT, MANUS_NEXT_STEP_PROMPT } from "../prompts/manus.js";
+
+export interface ManusOptions {
+  /** 预创建的 LLM 实例。不传则从 config 自动创建。 */
+  model?: BaseChatModel;
+  /** LLM 配置名（对应 config.toml 的 [llm.xxx]）。默认 "default"。 */
+  llmProfile?: string;
+  /** 工作目录。 */
+  workDir?: string;
+  /** 额外工具（如 MCP 动态工具）。 */
+  extraTools?: StructuredToolInterface[];
+  /** 启用 checkpointer。 */
+  checkpointer?: boolean;
+}
+
+export async function createManusAgent(options: ManusOptions = {}) {
+  const {
+    model,
+    llmProfile,
+    workDir = process.cwd(),
+    extraTools = [],
+    checkpointer = false,
+  } = options;
+
+  const llm = model ?? await createLLM(llmProfile);
+
+  return buildReactAgent({
+    model: llm,
+    tools: [codeExecute, bash, browserUse, strReplaceEditor, webSearch, crawl4ai, ...extraTools],
+    systemPrompt: MANUS_SYSTEM_PROMPT(workDir),
+    nextStepPrompt: MANUS_NEXT_STEP_PROMPT,
+    maxObserve: 10000,
+    recursionLimit: 40,
+    checkpointer,
+  });
+}
