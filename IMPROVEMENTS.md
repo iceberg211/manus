@@ -2,7 +2,7 @@
 
 > 状态化清单。每项标注当前状态，已完成的不再列出。
 >
-> 已完成并删除的项：S-2 (Bash 命令过滤)、S-4 (随机哨兵)、T-1 (extract_content 拆分)、T-2 (WebSearch 异步阻塞)、T-3 (步骤失败状态)、T-4 (Bedrock 全局状态)、A-4 (Streaming)。
+> 已完成并删除的项：S-2 (Bash 命令过滤)、S-4 (随机哨兵)、T-1 (extract_content 拆分)、T-2 (WebSearch 异步阻塞)、T-3 (步骤失败状态)、T-4 (Bedrock 全局状态)、A-4 (Streaming)、S-3 (路径边界 symlink 感知)、S-5 (shell 拼接收敛)、A-1 (Memory token 截断)、A-3 (Prod checkpointer 签名)、A-5 (A2A HITL 恢复)、A-6 (Browser 上下文注入)、PlanningTool 未挂载到 executor、PlanningTool 状态同步检测盲点、planning 代码/注释一致、browserUse tabCount、cleanup Promise.allSettled、crawl4ai 清理接入、reactAgent Proxy 包装。
 
 ---
 
@@ -26,52 +26,9 @@ const result = execSync(`python3 "${tmpFile}"`, { ... });
 **影响模块**: `tools/codeExecute.ts`
 **修正时机**: Sandbox 模块稳定后
 
-### S-3: StrReplaceEditor 路径边界 `需修正`
-
-**现状**: `fileOperators.ts` 的 `checkPathBoundary()` 已实现路径边界检查，但之前使用 `startsWith` 有经典前缀绕过漏洞（`/workspace_evil` 通过 `/workspace` 的 startsWith 检查）。
-
-**正确方案**: 改为 `path.relative(root, target)` + `..` 前缀检查，或检查 `resolved === root || resolved.startsWith(root + path.sep)`。`/tmp` 白名单也必须用相同边界方式，不能裸 `startsWith("/tmp")`。
-
-**待做**: 修复实现，并补充边界检查的单元测试（覆盖 `/workspace_evil`、`/tmp_evil`、`../escape`、符号链接等场景）。
-
-### S-5: 文件工具 shell 命令拼接 `需修正`
-
-**现状**: `strReplaceEditor.ts` 和 `fileOperators.ts` 中仍有面向 shell 的字符串拼接，例如目录 view 使用 `find "${path}" ...`，sandbox/local operator 也用 `test -d "${path}"` 一类命令。
-
-**问题**: 路径虽然被限制在 workspace 内，但文件名本身可以包含引号、换行、命令替换字符等，直接插入 shell 字符串仍有命令注入风险。
-
-**改进方案**:
-- 本地目录遍历优先用 `fs.readdir` / `fs.stat`，不要 shell out 到 `find`
-- 必须调用命令时使用 `spawn(command, args, { shell: false })`
-- sandbox 命令统一增加 shell argument escaping helper，并集中测试特殊字符路径
-
-**影响模块**: `tools/strReplaceEditor.ts`, `tools/fileOperators.ts`, `tools/sandbox/sbFilesTool.ts`
-
 ---
 
 ## 二、架构改进
-
-### A-1: Memory 无 token 感知截断 `未完成`
-
-**现状** (`nodes/think.ts`):
-Token limit 错误只 catch 后设 `status: "finished"` 终止。无 compaction 策略，长任务直接失败。
-
-**改进方案**:
-```typescript
-import { trimMessages } from "@langchain/core/messages";
-
-// 在 think 节点中，发送给 LLM 前先 trim
-const trimmed = await trimMessages(state.messages, {
-  maxTokens: 120000,
-  strategy: "last",
-  tokenCounter: model,
-  startOn: "human",
-  includeSystem: true,
-});
-const response = await model.invoke(trimmed);
-```
-
-**修正时机**: 优化 think 节点时
 
 ### A-2: Planning 步骤间上下文策略 `需设计`
 
@@ -87,68 +44,11 @@ const response = await model.invoke(trimmed);
 
 **修正时机**: 优化 Planning Flow 时决定策略
 
-### A-3: 生产级对话持久化 `部分完成`
-
-**已完成**: `config/persistence.ts` 提供 `MemorySaver`（开发）和 `createProdCheckpointer()` helper。
-
-**未完成**:
-- Agent builder (`buildReactAgent`) 只接受 `checkpointer: boolean`，不接受外部 checkpointer 实例
-- `createProdCheckpointer()` 存在但未接入任何运行入口
-- `@langchain/langgraph-checkpoint-postgres` 不在 package.json 依赖中
-- 生产部署仍然只有 MemorySaver（进程重启 = 数据丢失）
-
-**待做**:
-1. `ReactAgentOptions.checkpointer` 改为 `boolean | BaseCheckpointSaver`
-2. 在 `index.ts` / `runFlow.ts` 入口根据环境变量或 config 选择 checkpointer
-3. 文档说明如何安装和配置 PostgresSaver
-
-### A-5: HITL 在非 CLI 入口的恢复语义 `需设计`
-
-**现状**: CLI 的 updates/tokens 模式已经有 resume loop，但 Planning 子图和 A2A server 仍是一次性 invoke。子 agent 如果触发 `ask_human`，上层没有标准方式把 interrupt 暴露给调用方并恢复。
-
-**问题**:
-- Planning Flow 中子图 interrupt 需要上浮到父 flow，否则计划执行会卡住或得到不完整结果
-- A2A 的返回类型包含 `requireUserInput`，但当前实现总是成功时返回 `false`，异常时直接 500
-- `contextId` 没有映射到 LangGraph `thread_id`，同一个 A2A context 后续请求无法恢复同一对话
-
-**改进方案**:
-1. 抽出统一 `runGraphWithInterrupts(graph, input, config, callbacks)` helper
-2. A2A 使用 `contextId` 作为稳定 thread_id，并在 interrupt 时返回 `{ requireUserInput: true, content: question }`
-3. Planning 子图 interrupt 选择两种策略之一：上浮给父图调用方，或禁用子 agent HITL 并只允许父图询问人类
-
-**影响模块**: `index.ts`, `graphs/planning.ts`, `a2a/server.ts`, `config/persistence.ts`
-
-### A-6: Browser 上下文注入节点未接入图 `需确认`
-
-**现状**: `nodes/prepareContext.ts` 已实现浏览器状态注入（URL、title、interactive elements、screenshot），但当前 graph builder 没有把 `prepareContextNode` 接到 `think` 前。
-
-**问题**: 浏览器工具执行后，下一轮 LLM 可能只看到工具返回的短文本，而看不到最新 DOM 索引和截图；这会削弱 `browser_use` 的多步浏览能力。
-
-**改进方案**:
-- 在 Manus/browser-enabled agent 中接入 `prepare_context -> think`
-- 只在最近调用过 `browser_use` 时注入，避免每轮增加大图像 token
-- 对 screenshot 注入增加开关和尺寸/质量限制
-
-**影响模块**: `graphs/reactAgent.ts`, `graphs/manus.ts`, `nodes/prepareContext.ts`
-
 ---
 
 ## 三、工具实现改进
 
-### PlanningTool 未实际挂到 executor agent `需修正`
-
-**现状**: `planning.ts` 的 stepPrompt 告诉 executor “你有 planning tool”，但 `createManusAgent()` / `createSWEAgent()` / `createDataAnalysisAgent()` 默认工具列表没有包含 `planningTool`。
-
-**问题**: LLM 被提示可以动态修改计划，但实际工具不可用；这会让计划自调整能力失效，也会制造 prompt/工具不一致。
-
-**改进方案**:
-- 创建 Planning Flow 时，把 `planningTool` 作为 `extraTools` 注入需要它的 executor agent
-- 或者删除 stepPrompt 中的 planning tool 描述，把计划修改集中在父图节点中完成
-- 如果注入工具，必须同时解决下面的 planStorage 隔离问题
-
-**影响模块**: `runFlow.ts`, `graphs/planning.ts`, `graphs/manus.ts`, `graphs/swe.ts`, `graphs/dataAnalysis.ts`
-
-### PlanningTool 全局状态隔离 `需修正`
+### PlanningTool 全局状态隔离 `未完成`
 
 **现状**: `planStorage` 是进程级 singleton，Planning Flow 使用固定 `active_plan` 作为 planId，并且 tool 本身还有 `activePlanId`。
 
@@ -160,14 +60,6 @@ const response = await model.invoke(trimmed);
 - 长期方案：把 plan 存在 LangGraph state 或 Store 中，而不是进程级 singleton
 
 **影响模块**: `tools/planningTool.ts`, `graphs/planning.ts`, `a2a/server.ts`
-
-### PlanningTool 状态同步检测盲点 `需修正`
-
-**现状**: `planning.ts` 的 `executeStepNode` 在子图执行前后比较 `plan.steps.map(s => s.text).join("\n")` 来检测 LLM 是否通过 PlanningTool 修改了计划。
-
-**问题**: 如果 PlanningTool 只修改了 step 的 status 或 notes（不改 text），当前检测会漏掉。应改为同时比较 status 和 notes，或者用版本号/dirty flag。
-
-**影响模块**: `graphs/planning.ts`
 
 ### BrowserUse 稳定性测试缺口 `未完成`
 
@@ -247,12 +139,16 @@ const response = await model.invoke(trimmed);
 - `parallel_tool_calls=false` 生效，避免 ask_human 和其他工具并行悬空
 - recursionLimit wrapper 实际传入 invoke/stream config
 - Planning 子图失败时不会把 failed/blocked 覆盖为 completed
+- Proxy 包装后的 getState/updateState 等其他方法可用（A-3 打通后）
+- trimMessages 在超长历史下能正确截断且保留 system prompt（A-1）
+- A2A contextId 多次 invoke 能恢复同一会话（A-5）
+- browserContextEnabled 启用后，prepare_context 节点在 browser_use 未使用时是空操作（A-6）
 
 ### Q-2: 安全边界测试 `未完成`
 
 **应覆盖**:
-- path boundary：workspace 前缀绕过、`/tmp` 前缀绕过、符号链接逃逸
-- shell argument：文件名包含引号、空格、换行、`$()` 时不会执行额外命令
+- path boundary：workspace 前缀绕过、`/tmp` 前缀绕过、符号链接逃逸（S-3 修复需补回归测试）
+- shell argument：文件名包含引号、空格、换行、`$()` 时不会执行额外命令（S-5 修复需补回归测试）
 - codeExecute unsafe/dev mode 明确可见，sandbox mode 默认路径可用
 
 ### Q-3: Tool contract 测试 `未完成`
@@ -262,3 +158,4 @@ const response = await model.invoke(trimmed);
 - ToolNode 输出过长时会截断且不原地修改 message
 - PlanningTool 的 create/update/mark/delete 在并发 planId 下互不污染
 - BrowserUse 核心动作有 smoke test，网络或浏览器不可用时可跳过
+- fileOperators.listDirectory 在 local/sandbox 两种模式下行为一致（S-5 回归）
