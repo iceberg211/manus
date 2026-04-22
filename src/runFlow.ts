@@ -7,15 +7,15 @@
  * Equivalent to: FlowFactory.create_flow(PLANNING) → execute(prompt)
  */
 import { HumanMessage } from "@langchain/core/messages";
-import { ensureConfigLoaded } from "./config/index.js";
-import { createPlanningFlow } from "./graphs/planning.js";
-import { createManusAgent } from "./graphs/manus.js";
-import { createSWEAgent } from "./graphs/swe.js";
-import { createDataAnalysisAgent } from "./graphs/dataAnalysis.js";
-import { browserManager } from "./tools/browserUse.js";
-import { bashSession } from "./tools/bash.js";
-import { cleanupCrawler } from "./tools/crawl4ai.js";
-import { planningTool } from "./tools/planningTool.js";
+import { ensureConfigLoaded } from "@/config/index";
+import { createPlanningFlow } from "@/graphs/planning";
+import { createManusAgent } from "@/graphs/manus";
+import { createSWEAgent } from "@/graphs/swe";
+import { createDataAnalysisAgent } from "@/graphs/dataAnalysis";
+import { browserManager } from "@/tools/browserUse";
+import { bashSession } from "@/tools/bash";
+import { cleanupCrawler } from "@/tools/crawl4ai";
+import { planningTool } from "@/tools/planningTool";
 
 async function main() {
   await ensureConfigLoaded();

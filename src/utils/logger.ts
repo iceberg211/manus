@@ -4,7 +4,7 @@
  * Translated from: app/logger.py (loguru) + app/utils/logger.py (structlog)
  *
  * Features:
- * - Global singleton: `import { logger } from "./utils/logger.js"`
+ * - Global singleton: `import { logger } from "@/utils/logger"`
  * - Levels: debug/info/warn/error/fatal
  * - File output: logs/{timestamp}.log (when LOG_FILE=true)
  * - JSON mode: NODE_ENV=production → structured JSON output
@@ -58,7 +58,7 @@ if (enableFileLog) {
  *
  * Usage:
  * ```ts
- * import { logger } from "./utils/logger.js";
+ * import { logger } from "@/utils/logger";
  * logger.info("Agent started");
  * logger.debug({ tools: ["bash", "code"] }, "Tools loaded");
  * logger.error({ err }, "Failed to execute tool");

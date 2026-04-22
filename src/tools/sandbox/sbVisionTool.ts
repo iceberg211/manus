@@ -11,7 +11,7 @@
  */
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { SANDBOX_CLIENT } from "../../sandbox/docker.js";
+import { SANDBOX_CLIENT } from "@/sandbox/docker";
 
 export const sandboxVision = tool(
   async ({ action, screenshotPath }): Promise<string> => {

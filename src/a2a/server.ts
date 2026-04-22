@@ -14,10 +14,10 @@
  */
 import { HumanMessage } from "@langchain/core/messages";
 import { Command } from "@langchain/langgraph";
-import { createManusAgent } from "../graphs/manus.js";
-import { ensureConfigLoaded } from "../config/index.js";
-import { createThreadConfig, resolveDefaultCheckpointer } from "../config/persistence.js";
-import { logger } from "../utils/logger.js";
+import { createManusAgent } from "@/graphs/manus";
+import { ensureConfigLoaded } from "@/config/index";
+import { createThreadConfig, resolveDefaultCheckpointer } from "@/config/persistence";
+import { logger } from "@/utils/logger";
 import { randomUUID } from "crypto";
 
 // ---------------------------------------------------------------------------
@@ -359,7 +359,7 @@ export class A2AServer {
  *
  * Usage:
  * ```ts
- * import { startA2AServer } from "./a2a/server.js";
+ * import { startA2AServer } from "@/a2a/server";
  * startA2AServer({ port: 10000 });
  * ```
  */

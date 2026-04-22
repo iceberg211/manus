@@ -2,13 +2,13 @@
  * Unified prompt exports.
  *
  * All agent prompts accessible from a single import:
- *   import { PROMPTS } from "./prompts/index.js";
+ *   import { PROMPTS } from "@/prompts/index";
  *   PROMPTS.manus.system(workDir)
  */
-export * from "./manus.js";
-export * from "./swe.js";
-export * from "./dataAnalysis.js";
-export * from "./planning.js";
+export * from "@/prompts/manus";
+export * from "@/prompts/swe";
+export * from "@/prompts/dataAnalysis";
+export * from "@/prompts/planning";
 
 /** Prompt for generic tool-calling agent (from app/prompt/toolcall.py). */
 export const TOOLCALL_SYSTEM_PROMPT = "You are an agent that can execute tool calls.";

@@ -15,7 +15,7 @@
  */
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
-import { logger } from "../utils/logger.js";
+import { logger } from "@/utils/logger";
 
 // Types for MCP config
 export interface MCPServerConfig {

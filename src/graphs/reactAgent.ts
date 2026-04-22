@@ -26,13 +26,13 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { RunnableLambda, type RunnableConfig } from "@langchain/core/runnables";
 
-import { AgentState, type AgentStateType } from "../state/agentState.js";
-import { createThinkNode } from "../nodes/think.js";
-import { checkStuck, injectUnstuck } from "../nodes/checkStuck.js";
-import { hasHumanRequest, humanReviewNode } from "../nodes/humanReview.js";
-import { prepareContextNode } from "../nodes/prepareContext.js";
-import { terminate } from "../tools/terminate.js";
-import { askHuman } from "../tools/askHuman.js";
+import { AgentState, type AgentStateType } from "@/state/agentState";
+import { createThinkNode } from "@/nodes/think";
+import { checkStuck, injectUnstuck } from "@/nodes/checkStuck";
+import { hasHumanRequest, humanReviewNode } from "@/nodes/humanReview";
+import { prepareContextNode } from "@/nodes/prepareContext";
+import { terminate } from "@/tools/terminate";
+import { askHuman } from "@/tools/askHuman";
 
 // ---------------------------------------------------------------------------
 // Model middleware — prompt injection + provider compatibility

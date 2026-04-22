@@ -17,7 +17,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { spawn, ChildProcess } from "child_process";
 import { randomUUID } from "crypto";
-import { BASH } from "../config/constants.js";
+import { BASH } from "@/config/constants";
 
 const DEFAULT_TIMEOUT = BASH.TIMEOUT_MS;
 const OUTPUT_POLL_INTERVAL = BASH.POLL_INTERVAL_MS;

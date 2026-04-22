@@ -5,13 +5,13 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { BaseCheckpointSaver } from "@langchain/langgraph";
-import { buildReactAgent } from "./reactAgent.js";
-import { createLLM } from "../config/llmFactory.js";
-import { getConfig } from "../config/index.js";
-import { codeExecute } from "../tools/codeExecute.js";
-import { bash } from "../tools/bash.js";
-import { chartVisualization, visualizationPrepare } from "../tools/chartVisualization.js";
-import { DATA_ANALYSIS_SYSTEM_PROMPT, DATA_ANALYSIS_NEXT_STEP_PROMPT } from "../prompts/dataAnalysis.js";
+import { buildReactAgent } from "@/graphs/reactAgent";
+import { createLLM } from "@/config/llmFactory";
+import { getConfig } from "@/config/index";
+import { codeExecute } from "@/tools/codeExecute";
+import { bash } from "@/tools/bash";
+import { chartVisualization, visualizationPrepare } from "@/tools/chartVisualization";
+import { DATA_ANALYSIS_SYSTEM_PROMPT, DATA_ANALYSIS_NEXT_STEP_PROMPT } from "@/prompts/dataAnalysis";
 
 export interface DataAnalysisAgentOptions {
   model?: BaseChatModel;

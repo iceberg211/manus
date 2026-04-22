@@ -7,16 +7,16 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { BaseCheckpointSaver } from "@langchain/langgraph";
 
-import { buildReactAgent } from "./reactAgent.js";
-import { createLLM } from "../config/llmFactory.js";
-import { getConfig } from "../config/index.js";
-import { bash } from "../tools/bash.js";
-import { codeExecute } from "../tools/codeExecute.js";
-import { strReplaceEditor } from "../tools/strReplaceEditor.js";
-import { webSearch } from "../tools/webSearch.js";
-import { browserUse } from "../tools/browserUse.js";
-import { crawl4ai } from "../tools/crawl4ai.js";
-import { MANUS_SYSTEM_PROMPT, MANUS_NEXT_STEP_PROMPT } from "../prompts/manus.js";
+import { buildReactAgent } from "@/graphs/reactAgent";
+import { createLLM } from "@/config/llmFactory";
+import { getConfig } from "@/config/index";
+import { bash } from "@/tools/bash";
+import { codeExecute } from "@/tools/codeExecute";
+import { strReplaceEditor } from "@/tools/strReplaceEditor";
+import { webSearch } from "@/tools/webSearch";
+import { browserUse } from "@/tools/browserUse";
+import { crawl4ai } from "@/tools/crawl4ai";
+import { MANUS_SYSTEM_PROMPT, MANUS_NEXT_STEP_PROMPT } from "@/prompts/manus";
 
 export interface ManusOptions {
   /** 预创建的 LLM 实例。不传则从 config 自动创建。 */

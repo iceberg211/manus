@@ -26,8 +26,8 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { search as ddgSearch, SafeSearchType } from "duck-duck-scrape";
 import * as cheerio from "cheerio";
-import { SEARCH } from "../config/constants.js";
-import { logger } from "../utils/logger.js";
+import { SEARCH } from "@/config/constants";
+import { logger } from "@/utils/logger";
 
 const MAX_CONTENT_LENGTH = SEARCH.MAX_CONTENT_LENGTH;
 const MAX_RETRIES = SEARCH.MAX_RETRIES;

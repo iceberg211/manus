@@ -11,7 +11,7 @@
  */
 import { AIMessage } from "@langchain/core/messages";
 import type { Runnable } from "@langchain/core/runnables";
-import type { AgentStateType } from "../state/agentState.js";
+import type { AgentStateType } from "@/state/agentState";
 
 /**
  * Create a think node. The model should already have middleware applied

@@ -14,8 +14,8 @@
  */
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { SANDBOX_CLIENT } from "../../sandbox/docker.js";
-import { logger } from "../../utils/logger.js";
+import { SANDBOX_CLIENT } from "@/sandbox/docker";
+import { logger } from "@/utils/logger";
 import { randomUUID } from "crypto";
 
 export const sandboxShell = tool(

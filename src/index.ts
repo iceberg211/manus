@@ -3,13 +3,13 @@ import { Command } from "@langchain/langgraph";
 import type { BaseCheckpointSaver } from "@langchain/langgraph";
 import { createInterface } from "readline";
 
-import { createManusAgent } from "./graphs/manus.js";
-import { ensureConfigLoaded } from "./config/index.js";
-import { browserManager } from "./tools/browserUse.js";
-import { bashSession } from "./tools/bash.js";
-import { cleanupCrawler } from "./tools/crawl4ai.js";
-import { createThreadConfig, resolveDefaultCheckpointer } from "./config/persistence.js";
-import { logger } from "./utils/logger.js";
+import { createManusAgent } from "@/graphs/manus";
+import { ensureConfigLoaded } from "@/config/index";
+import { browserManager } from "@/tools/browserUse";
+import { bashSession } from "@/tools/bash";
+import { cleanupCrawler } from "@/tools/crawl4ai";
+import { createThreadConfig, resolveDefaultCheckpointer } from "@/config/persistence";
+import { logger } from "@/utils/logger";
 
 /**
  * A-3: 选择 checkpointer。

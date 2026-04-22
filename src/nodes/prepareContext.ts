@@ -13,9 +13,9 @@
  * Position: runs BEFORE the think node
  */
 import { HumanMessage } from "@langchain/core/messages";
-import type { AgentStateType } from "../state/agentState.js";
-import { browserManager } from "../tools/browserUse.js";
-import { logger } from "../utils/logger.js";
+import type { AgentStateType } from "@/state/agentState";
+import { browserManager } from "@/tools/browserUse";
+import { logger } from "@/utils/logger";
 
 const BROWSER_TOOL_NAME = "browser_use";
 const RECENT_MESSAGES_CHECK = 3;

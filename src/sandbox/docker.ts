@@ -17,7 +17,7 @@
  * Requires: Docker daemon running and `docker` CLI available.
  */
 import { execSync } from "child_process";
-import { SANDBOX } from "../config/constants.js";
+import { SANDBOX } from "@/config/constants";
 
 export interface SandboxConfig {
   image?: string;

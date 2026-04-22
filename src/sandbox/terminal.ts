@@ -17,7 +17,7 @@
  */
 import { spawn, ChildProcess } from "child_process";
 import { randomUUID } from "crypto";
-import { logger } from "../utils/logger.js";
+import { logger } from "@/utils/logger";
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 const POLL_INTERVAL_MS = 200;

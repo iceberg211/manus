@@ -11,12 +11,12 @@
  * Usage:
  *   npx tsx src/mcp/server.ts
  */
-import { bash } from "../tools/bash.js";
-import { ensureConfigLoaded } from "../config/index.js";
-import { codeExecute } from "../tools/codeExecute.js";
-import { strReplaceEditor } from "../tools/strReplaceEditor.js";
-import { webSearch } from "../tools/webSearch.js";
-import { logger } from "../utils/logger.js";
+import { bash } from "@/tools/bash";
+import { ensureConfigLoaded } from "@/config/index";
+import { codeExecute } from "@/tools/codeExecute";
+import { strReplaceEditor } from "@/tools/strReplaceEditor";
+import { webSearch } from "@/tools/webSearch";
+import { logger } from "@/utils/logger";
 
 export async function startMCPServer() {
   try {

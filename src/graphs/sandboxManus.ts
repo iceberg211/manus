@@ -3,15 +3,15 @@
  * Translated from: app/agent/sandbox_agent.py
  */
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { buildReactAgent } from "./reactAgent.js";
-import { createLLM } from "../config/llmFactory.js";
-import { sandboxShell } from "../tools/sandbox/sbShellTool.js";
-import { sandboxFiles } from "../tools/sandbox/sbFilesTool.js";
-import { sandboxBrowser } from "../tools/sandbox/sbBrowserTool.js";
-import { sandboxVision } from "../tools/sandbox/sbVisionTool.js";
-import { MANUS_SYSTEM_PROMPT, MANUS_NEXT_STEP_PROMPT } from "../prompts/manus.js";
-import { SANDBOX_CLIENT } from "../sandbox/docker.js";
-import { logger } from "../utils/logger.js";
+import { buildReactAgent } from "@/graphs/reactAgent";
+import { createLLM } from "@/config/llmFactory";
+import { sandboxShell } from "@/tools/sandbox/sbShellTool";
+import { sandboxFiles } from "@/tools/sandbox/sbFilesTool";
+import { sandboxBrowser } from "@/tools/sandbox/sbBrowserTool";
+import { sandboxVision } from "@/tools/sandbox/sbVisionTool";
+import { MANUS_SYSTEM_PROMPT, MANUS_NEXT_STEP_PROMPT } from "@/prompts/manus";
+import { SANDBOX_CLIENT } from "@/sandbox/docker";
+import { logger } from "@/utils/logger";
 
 export interface SandboxManusOptions {
   model?: BaseChatModel;

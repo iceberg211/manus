@@ -7,14 +7,14 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { StateGraph, START, END } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 
-import { buildReactAgent } from "./graphs/reactAgent.js";
-import { bash, bashSession } from "./tools/bash.js";
-import { codeExecute } from "./tools/codeExecute.js";
-import { terminate } from "./tools/terminate.js";
-import { strReplaceEditor } from "./tools/strReplaceEditor.js";
-import { webSearch } from "./tools/webSearch.js";
-import { askHuman } from "./tools/askHuman.js";
-import { createThreadConfig } from "./config/persistence.js";
+import { buildReactAgent } from "@/graphs/reactAgent";
+import { bash, bashSession } from "@/tools/bash";
+import { codeExecute } from "@/tools/codeExecute";
+import { terminate } from "@/tools/terminate";
+import { strReplaceEditor } from "@/tools/strReplaceEditor";
+import { webSearch } from "@/tools/webSearch";
+import { askHuman } from "@/tools/askHuman";
+import { createThreadConfig } from "@/config/persistence";
 
 async function testGraphStructure() {
   console.log("=== Test 1: Graph Structure ===\n");

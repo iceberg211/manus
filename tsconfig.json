@@ -3,6 +3,10 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
     "esModuleInterop": true,
     "strict": true,
     "outDir": "dist",
@@ -12,6 +16,10 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true
+  },
+  "tsc-alias": {
+    "resolveFullPaths": true,
+    "resolveFullExtension": ".js"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

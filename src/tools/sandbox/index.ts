@@ -1,4 +1,4 @@
-export { sandboxShell } from "./sbShellTool.js";
-export { sandboxFiles } from "./sbFilesTool.js";
-export { sandboxBrowser } from "./sbBrowserTool.js";
-export { sandboxVision } from "./sbVisionTool.js";
+export { sandboxShell } from "@/tools/sandbox/sbShellTool";
+export { sandboxFiles } from "@/tools/sandbox/sbFilesTool";
+export { sandboxBrowser } from "@/tools/sandbox/sbBrowserTool";
+export { sandboxVision } from "@/tools/sandbox/sbVisionTool";

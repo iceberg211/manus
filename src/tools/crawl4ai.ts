@@ -17,8 +17,8 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import * as cheerio from "cheerio";
 import { chromium, type Browser } from "playwright";
-import { CRAWL } from "../config/constants.js";
-import { logger } from "../utils/logger.js";
+import { CRAWL } from "@/config/constants";
+import { logger } from "@/utils/logger";
 
 function isValidUrl(url: string): boolean {
   try {

@@ -22,9 +22,9 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 import { join, basename } from "path";
 import { execSync } from "child_process";
 import { tmpdir } from "os";
-import { CODE_EXEC } from "../config/constants.js";
-import { getConfig, WORKSPACE_ROOT } from "../config/index.js";
-import { logger } from "../utils/logger.js";
+import { CODE_EXEC } from "@/config/constants";
+import { getConfig, WORKSPACE_ROOT } from "@/config/index";
+import { logger } from "@/utils/logger";
 
 /**
  * Initialize VMind with LLM config from app config.

@@ -4,12 +4,12 @@
  */
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { StructuredToolInterface } from "@langchain/core/tools";
-import { buildReactAgent } from "./reactAgent.js";
-import { createLLM } from "../config/llmFactory.js";
-import { getConfig } from "../config/index.js";
-import { bash } from "../tools/bash.js";
-import { strReplaceEditor } from "../tools/strReplaceEditor.js";
-import { SWE_SYSTEM_PROMPT } from "../prompts/swe.js";
+import { buildReactAgent } from "@/graphs/reactAgent";
+import { createLLM } from "@/config/llmFactory";
+import { getConfig } from "@/config/index";
+import { bash } from "@/tools/bash";
+import { strReplaceEditor } from "@/tools/strReplaceEditor";
+import { SWE_SYSTEM_PROMPT } from "@/prompts/swe";
 import type { BaseCheckpointSaver } from "@langchain/langgraph";
 
 export interface SWEAgentOptions {

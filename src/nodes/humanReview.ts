@@ -22,7 +22,7 @@
  */
 import { ToolMessage } from "@langchain/core/messages";
 import { interrupt } from "@langchain/langgraph";
-import type { AgentStateType } from "../state/agentState.js";
+import type { AgentStateType } from "@/state/agentState";
 
 /**
  * Check if the last AI message contains an ask_human tool call.

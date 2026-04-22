@@ -22,7 +22,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { DomService, DOMState, BrowserSession } from "browser-use";
-import { BROWSER } from "../config/constants.js";
+import { BROWSER } from "@/config/constants";
 
 // Simple mutex
 class Mutex {

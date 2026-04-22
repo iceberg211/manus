@@ -10,8 +10,8 @@
  * - On stuck: injects a strategy-change prompt (matches handle_stuck_state)
  */
 import { HumanMessage } from "@langchain/core/messages";
-import type { AgentStateType } from "../state/agentState.js";
-import { AGENT } from "../config/constants.js";
+import type { AgentStateType } from "@/state/agentState";
+import { AGENT } from "@/config/constants";
 
 const DUPLICATE_THRESHOLD = AGENT.DUPLICATE_THRESHOLD;
 const UNSTUCK_PROMPT = AGENT.UNSTUCK_PROMPT;

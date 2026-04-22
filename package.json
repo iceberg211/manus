@@ -4,7 +4,7 @@
   "description": "AI Agent framework built with LangGraph TypeScript",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc-alias",
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
     "server": "tsx server/index.ts",
@@ -33,7 +33,13 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "tsc-alias": "^1.8.16",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "canvas"
+    ]
   }
 }

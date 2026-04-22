@@ -4,7 +4,7 @@
  * Consolidated from scattered constants across tool files and nodes.
  * Matches values from the original OpenManus Python codebase.
  *
- * Usage: import { AGENT, TOOLS, SEARCH, SANDBOX } from "./config/constants.js";
+ * Usage: import { AGENT, TOOLS, SEARCH, SANDBOX } from "@/config/constants";
  */
 
 // ---------------------------------------------------------------------------

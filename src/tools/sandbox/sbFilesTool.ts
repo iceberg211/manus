@@ -8,7 +8,7 @@
  */
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { SANDBOX_CLIENT } from "../../sandbox/docker.js";
+import { SANDBOX_CLIENT } from "@/sandbox/docker";
 import { resolve, posix } from "path";
 
 const WORKSPACE = "/workspace";

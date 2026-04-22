@@ -12,8 +12,8 @@
 import { readFile, writeFile, stat, access, realpath, readdir, unlink } from "fs/promises";
 import { resolve, dirname, basename, join, relative } from "path";
 import { execSync } from "child_process";
-import { SANDBOX_CLIENT } from "../sandbox/docker.js";
-import { getConfig, WORKSPACE_ROOT } from "../config/index.js";
+import { SANDBOX_CLIENT } from "@/sandbox/docker";
+import { getConfig, WORKSPACE_ROOT } from "@/config/index";
 
 // ---------------------------------------------------------------------------
 // Shell quoting helpers (S-5)

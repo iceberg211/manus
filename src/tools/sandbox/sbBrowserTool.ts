@@ -12,7 +12,7 @@
  */
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { SANDBOX_CLIENT } from "../../sandbox/docker.js";
+import { SANDBOX_CLIENT } from "@/sandbox/docker";
 
 export const sandboxBrowser = tool(
   async ({ action, url, text, index }): Promise<string> => {

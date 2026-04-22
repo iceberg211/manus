@@ -23,9 +23,9 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import type { BaseCheckpointSaver, CompiledStateGraph } from "@langchain/langgraph";
 import { randomUUID } from "crypto";
-import { createLLM } from "../config/llmFactory.js";
-import { createThreadConfig } from "../config/persistence.js";
-import { logger } from "../utils/logger.js";
+import { createLLM } from "@/config/llmFactory";
+import { createThreadConfig } from "@/config/persistence";
+import { logger } from "@/utils/logger";
 
 import {
   PlanState,
@@ -33,13 +33,13 @@ import {
   type Plan,
   type PlanStep,
   formatPlan,
-} from "../state/planState.js";
+} from "@/state/planState";
 import {
   PLANNING_SYSTEM_PROMPT,
   PLAN_CREATION_PROMPT,
   SUMMARIZE_PROMPT,
-} from "../prompts/planning.js";
-import { planStorage } from "../tools/planningTool.js";
+} from "@/prompts/planning";
+import { planStorage } from "@/tools/planningTool";
 
 // ---- Types ----
 

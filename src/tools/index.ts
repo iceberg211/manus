@@ -6,27 +6,27 @@
  */
 
 // Phase 1: Core tools
-export { bash, bashSession } from "./bash.js";
-export { codeExecute } from "./codeExecute.js";
-export { terminate } from "./terminate.js";
+export { bash, bashSession } from "@/tools/bash";
+export { codeExecute } from "@/tools/codeExecute";
+export { terminate } from "@/tools/terminate";
 
 // Phase 2: Extended tools
-export { strReplaceEditor } from "./strReplaceEditor.js";
-export { webSearch } from "./webSearch.js";
-export { browserUse, browserManager } from "./browserUse.js";
+export { strReplaceEditor } from "@/tools/strReplaceEditor";
+export { webSearch } from "@/tools/webSearch";
+export { browserUse, browserManager } from "@/tools/browserUse";
 
 // Phase 6: HITL + MCP
-export { askHuman } from "./askHuman.js";
-export { MCPToolManager, loadMCPToolsFromConfig, type MCPServerConfig } from "./mcpTools.js";
+export { askHuman } from "@/tools/askHuman";
+export { MCPToolManager, loadMCPToolsFromConfig, type MCPServerConfig } from "@/tools/mcpTools";
 
 // Phase 7: Missing features
-export { crawl4ai, cleanupCrawler } from "./crawl4ai.js";
-export { chartVisualization, visualizationPrepare } from "./chartVisualization.js";
-export { planningTool, planStorage, PlanStorage } from "./planningTool.js";
-export { getOperator, checkPathBoundary, LocalFileOperator, SandboxFileOperator, type FileOperator } from "./fileOperators.js";
+export { crawl4ai, cleanupCrawler } from "@/tools/crawl4ai";
+export { chartVisualization, visualizationPrepare } from "@/tools/chartVisualization";
+export { planningTool, planStorage, PlanStorage } from "@/tools/planningTool";
+export { getOperator, checkPathBoundary, LocalFileOperator, SandboxFileOperator, type FileOperator } from "@/tools/fileOperators";
 
 // Sandbox tools
-export { sandboxShell } from "./sandbox/sbShellTool.js";
-export { sandboxFiles } from "./sandbox/sbFilesTool.js";
-export { sandboxBrowser } from "./sandbox/sbBrowserTool.js";
-export { sandboxVision } from "./sandbox/sbVisionTool.js";
+export { sandboxShell } from "@/tools/sandbox/sbShellTool";
+export { sandboxFiles } from "@/tools/sandbox/sbFilesTool";
+export { sandboxBrowser } from "@/tools/sandbox/sbBrowserTool";
+export { sandboxVision } from "@/tools/sandbox/sbVisionTool";

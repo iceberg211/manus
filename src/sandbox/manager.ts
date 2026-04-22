@@ -11,10 +11,10 @@
  * 5. Image pull/validation
  * 6. getStats() diagnostics
  */
-import { DockerSandbox, type SandboxConfig } from "./docker.js";
-import { SandboxTerminal } from "./terminal.js";
+import { DockerSandbox, type SandboxConfig } from "@/sandbox/docker";
+import { SandboxTerminal } from "@/sandbox/terminal";
 import { execSync } from "child_process";
-import { logger } from "../utils/logger.js";
+import { logger } from "@/utils/logger";
 
 interface SandboxEntry {
   sandbox: DockerSandbox;

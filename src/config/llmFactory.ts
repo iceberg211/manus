@@ -8,14 +8,14 @@
  * 新模型名立即可用——不需要更新代码，provider 包按需安装即可。
  *
  * 用法:
- *   import { createLLM } from "./config/llmFactory.js";
+ *   import { createLLM } from "@/config/llmFactory";
  *   const model = await createLLM();           // config.llm.default
  *   const model = await createLLM("manus");    // config.llm.manus
  */
 import { initChatModel } from "langchain/chat_models/universal";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { ensureConfigLoaded } from "./index.js";
-import { logger } from "../utils/logger.js";
+import { ensureConfigLoaded } from "@/config/index";
+import { logger } from "@/utils/logger";
 
 /**
  * 根据 config 创建 LLM 实例。

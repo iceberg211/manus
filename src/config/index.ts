@@ -374,5 +374,5 @@ function buildConfigFromEnv(): AppConfig {
 }
 
 // Re-export constants
-export * from "./constants.js";
-export * from "./persistence.js";
+export * from "@/config/constants";
+export * from "@/config/persistence";

@@ -15,8 +15,8 @@
  */
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { EDITOR } from "../config/constants.js";
-import { getOperator, checkPathBoundary, type FileOperator } from "./fileOperators.js";
+import { EDITOR } from "@/config/constants";
+import { getOperator, checkPathBoundary, type FileOperator } from "@/tools/fileOperators";
 
 const SNIPPET_LINES = EDITOR.SNIPPET_LINES;
 const MAX_RESPONSE_LEN = EDITOR.MAX_RESPONSE_LEN;
