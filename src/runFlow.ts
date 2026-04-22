@@ -7,6 +7,7 @@
  * Equivalent to: FlowFactory.create_flow(PLANNING) → execute(prompt)
  */
 import { HumanMessage } from "@langchain/core/messages";
+import { ensureConfigLoaded } from "./config/index.js";
 import { createPlanningFlow } from "./graphs/planning.js";
 import { createManusAgent } from "./graphs/manus.js";
 import { createSWEAgent } from "./graphs/swe.js";
@@ -17,6 +18,8 @@ import { cleanupCrawler } from "./tools/crawl4ai.js";
 import { planningTool } from "./tools/planningTool.js";
 
 async function main() {
+  await ensureConfigLoaded();
+
   const prompt =
     process.argv[2] ||
     "Create a Python script that calculates fibonacci numbers and save it to workspace/fib.py";

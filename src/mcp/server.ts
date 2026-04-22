@@ -12,6 +12,7 @@
  *   npx tsx src/mcp/server.ts
  */
 import { bash } from "../tools/bash.js";
+import { ensureConfigLoaded } from "../config/index.js";
 import { codeExecute } from "../tools/codeExecute.js";
 import { strReplaceEditor } from "../tools/strReplaceEditor.js";
 import { webSearch } from "../tools/webSearch.js";
@@ -19,6 +20,8 @@ import { logger } from "../utils/logger.js";
 
 export async function startMCPServer() {
   try {
+    await ensureConfigLoaded();
+
     const { Server } = await import("@modelcontextprotocol/sdk/server/index.js");
     const { StdioServerTransport } = await import("@modelcontextprotocol/sdk/server/stdio.js");
 

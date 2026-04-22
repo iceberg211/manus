@@ -22,8 +22,13 @@ const SNIPPET_LINES = EDITOR.SNIPPET_LINES;
 const MAX_RESPONSE_LEN = EDITOR.MAX_RESPONSE_LEN;
 const TRUNCATED_MESSAGE = EDITOR.TRUNCATED_MESSAGE;
 
-// File history for undo support — Map<path, previousContent[]>
-const fileHistory: Map<string, string[]> = new Map();
+interface EditHistoryEntry {
+  kind: "create" | "edit";
+  previousContent?: string;
+}
+
+// File history for undo support — Map<path, history[]>
+const fileHistory: Map<string, EditHistoryEntry[]> = new Map();
 
 /** Truncate content if it exceeds max length. */
 function maybeTruncate(content: string, maxLen = MAX_RESPONSE_LEN): string {
@@ -111,7 +116,7 @@ async function createCommand(path: string, fileText: string): Promise<string> {
   await o.writeFile(path, fileText);
   // Save to history for undo
   if (!fileHistory.has(path)) fileHistory.set(path, []);
-  fileHistory.get(path)!.push(fileText);
+  fileHistory.get(path)!.push({ kind: "create" });
   return `File created successfully at: ${path}`;
 }
 
@@ -121,11 +126,7 @@ async function strReplaceCommand(
   newStr: string
 ): Promise<string> {
   const o = op();
-  let content = await o.readFile(path);
-  // Expand tabs (matches Python expandtabs())
-  content = content.replace(/\t/g, "        ");
-  oldStr = oldStr.replace(/\t/g, "        ");
-  newStr = newStr.replace(/\t/g, "        ");
+  const content = await o.readFile(path);
 
   // Count occurrences — must be exactly 1
   const occurrences = content.split(oldStr).length - 1;
@@ -148,7 +149,7 @@ async function strReplaceCommand(
 
   // Save original to history for undo
   if (!fileHistory.has(path)) fileHistory.set(path, []);
-  fileHistory.get(path)!.push(content);
+  fileHistory.get(path)!.push({ kind: "edit", previousContent: content });
 
   // Create snippet of edited section
   const replacementLine = content.split(oldStr)[0].split("\n").length - 1;
@@ -177,9 +178,7 @@ async function insertCommand(
   newStr: string
 ): Promise<string> {
   const o = op();
-  let content = await o.readFile(path);
-  content = content.replace(/\t/g, "        ");
-  newStr = newStr.replace(/\t/g, "        ");
+  const content = await o.readFile(path);
 
   const lines = content.split("\n");
   const nLines = lines.length;
@@ -207,7 +206,7 @@ async function insertCommand(
 
   // Save original to history
   if (!fileHistory.has(path)) fileHistory.set(path, []);
-  fileHistory.get(path)!.push(content);
+  fileHistory.get(path)!.push({ kind: "edit", previousContent: content });
 
   const snippet = snippetLines.join("\n");
   let msg = `The file ${path} has been edited. `;
@@ -227,8 +226,16 @@ async function undoEditCommand(path: string): Promise<string> {
     return `Error: No edit history found for ${path}.`;
   }
 
-  const oldText = history.pop()!;
-  await op().writeFile(path, oldText);
+  const entry = history.pop()!;
+  const fileOp = op();
+
+  if (entry.kind === "create") {
+    await fileOp.deleteFile(path);
+    return `Last edit to ${path} undone successfully. The file has been removed.`;
+  }
+
+  const oldText = entry.previousContent ?? "";
+  await fileOp.writeFile(path, oldText);
   return `Last edit to ${path} undone successfully. ${formatWithLineNumbers(oldText, path)}`;
 }
 

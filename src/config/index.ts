@@ -4,10 +4,11 @@
  * Translated from: app/config.py (373 lines)
  *
  * Supports:
- * - config/config.toml (primary) or config/config.example.toml (fallback)
+ * - config/config.toml
+ * - 通用 LLM 环境变量（LLM_API_TYPE / LLM_MODEL / LLM_BASE_URL / LLM_API_KEY）
+ * - OpenAI 兼容环境变量（OPENAI_MODEL / OPENAI_BASE_URL / OPENAI_API_KEY）
  * - LLM settings with per-agent overrides
  * - Browser, Search, Sandbox, MCP, Daytona settings
- * - Environment variable fallbacks for API keys
  */
 import "dotenv/config"; // 自动加载 .env 到 process.env
 import { readFileSync, existsSync } from "fs";
@@ -138,9 +139,63 @@ const DEFAULT_RUNFLOW: RunflowSettings = {
 function findConfigPath(projectRoot: string): string | null {
   const primary = join(projectRoot, "config", "config.toml");
   if (existsSync(primary)) return primary;
-  const example = join(projectRoot, "config", "config.example.toml");
-  if (existsSync(example)) return example;
   return null;
+}
+
+interface ResolvedLLMEnv {
+  api_type?: string;
+  model?: string;
+  base_url?: string;
+  api_key?: string;
+  api_version?: string;
+  max_tokens?: number;
+  max_input_tokens?: number;
+  temperature?: number;
+}
+
+function readEnvString(...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = process.env[key]?.trim();
+    if (value) return value;
+  }
+  return undefined;
+}
+
+function readEnvNumber(...keys: string[]): number | undefined {
+  const raw = readEnvString(...keys);
+  if (!raw) return undefined;
+
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function resolveLLMEnv(): ResolvedLLMEnv {
+  return {
+    api_type: readEnvString("LLM_API_TYPE"),
+    model: readEnvString("LLM_MODEL", "MODEL_NAME", "OPENAI_MODEL"),
+    base_url: readEnvString("LLM_BASE_URL", "OPENAI_BASE_URL"),
+    api_key: readEnvString("LLM_API_KEY", "OPENAI_API_KEY"),
+    api_version: readEnvString("LLM_API_VERSION", "OPENAI_API_VERSION"),
+    max_tokens: readEnvNumber("LLM_MAX_TOKENS"),
+    max_input_tokens: readEnvNumber("LLM_MAX_INPUT_TOKENS"),
+    temperature: readEnvNumber("LLM_TEMPERATURE"),
+  };
+}
+
+function buildDefaultLLMSettings(
+  llmRaw: Record<string, any>,
+  env: ResolvedLLMEnv,
+): LLMSettings {
+  return {
+    model: env.model ?? llmRaw.model ?? "gpt-4o",
+    base_url: env.base_url ?? llmRaw.base_url ?? "https://api.openai.com/v1",
+    api_key: env.api_key ?? llmRaw.api_key ?? "",
+    max_tokens: env.max_tokens ?? llmRaw.max_tokens ?? 4096,
+    max_input_tokens: env.max_input_tokens ?? llmRaw.max_input_tokens,
+    temperature: env.temperature ?? llmRaw.temperature ?? 0,
+    api_type: env.api_type ?? llmRaw.api_type ?? "openai",
+    api_version: env.api_version ?? llmRaw.api_version ?? "",
+  };
 }
 
 function loadMCPServers(projectRoot: string): Record<string, MCPServerConfig> {
@@ -174,7 +229,6 @@ function loadMCPServers(projectRoot: string): Record<string, MCPServerConfig> {
  */
 export async function loadConfig(projectRoot?: string): Promise<AppConfig> {
   const root = projectRoot ?? resolve(process.cwd());
-  const workspaceRoot = join(root, "workspace");
 
   // Try to load TOML config
   const configPath = findConfigPath(root);
@@ -197,16 +251,8 @@ export async function loadConfig(projectRoot?: string): Promise<AppConfig> {
 
   // Build LLM settings
   const llmRaw = rawConfig.llm ?? {};
-  const defaultLLM: LLMSettings = {
-    model: llmRaw.model ?? process.env.MODEL_NAME ?? process.env.OPENAI_MODEL ?? "gpt-4o",
-    base_url: llmRaw.base_url ?? process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1",
-    api_key: llmRaw.api_key ?? process.env.OPENAI_API_KEY ?? "",
-    max_tokens: llmRaw.max_tokens ?? 4096,
-    max_input_tokens: llmRaw.max_input_tokens,
-    temperature: llmRaw.temperature ?? 0,
-    api_type: llmRaw.api_type ?? "openai",
-    api_version: llmRaw.api_version ?? "",
-  };
+  const llmEnv = resolveLLMEnv();
+  const defaultLLM = buildDefaultLLMSettings(llmRaw, llmEnv);
 
   const llmSettings: Record<string, LLMSettings> = { default: defaultLLM };
   // Agent-specific overrides
@@ -305,19 +351,18 @@ export async function initConfig(projectRoot?: string): Promise<AppConfig> {
   return _config;
 }
 
+/** Ensure config is initialized once; safe to call from lazy entry points. */
+export async function ensureConfigLoaded(projectRoot?: string): Promise<AppConfig> {
+  if (_config) return _config;
+  return initConfig(projectRoot);
+}
+
 /** Sync config from environment variables only. */
 function buildConfigFromEnv(): AppConfig {
+  const llmEnv = resolveLLMEnv();
   return {
     llm: {
-      default: {
-        model: process.env.MODEL_NAME ?? process.env.OPENAI_MODEL ?? "gpt-4o",
-        base_url: process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1",
-        api_key: process.env.OPENAI_API_KEY ?? "",
-        max_tokens: 4096,
-        temperature: 0,
-        api_type: "openai",
-        api_version: "",
-      },
+      default: buildDefaultLLMSettings({}, llmEnv),
     },
     sandbox: { use_sandbox: false, image: "python:3.12-slim", work_dir: "/workspace", memory_limit: "512m", cpu_limit: 1.0, timeout: 300, network_enabled: false },
     browser: null,

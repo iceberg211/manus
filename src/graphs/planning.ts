@@ -21,7 +21,8 @@ import { StateGraph, START, END, MemorySaver } from "@langchain/langgraph";
 import { Command } from "@langchain/langgraph";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
-import type { CompiledStateGraph } from "@langchain/langgraph";
+import type { BaseCheckpointSaver, CompiledStateGraph } from "@langchain/langgraph";
+import { randomUUID } from "crypto";
 import { createLLM } from "../config/llmFactory.js";
 import { createThreadConfig } from "../config/persistence.js";
 import { logger } from "../utils/logger.js";
@@ -58,7 +59,7 @@ export interface PlanningFlowOptions {
   /** Default agent key to use when no type match found. */
   defaultAgent?: string;
   /** Enable checkpointer. */
-  checkpointer?: boolean;
+  checkpointer?: boolean | BaseCheckpointSaver;
 }
 
 // ---- Nodes ----
@@ -140,7 +141,7 @@ function createPlanNode(model: BaseChatModel, agentEntries: AgentEntry[]) {
     logger.info(
       `[plan] Created: "${plan.title}" with ${plan.steps.length} steps`,
     );
-    return { plan };
+    return { plan, planId: `plan_${randomUUID()}` };
   };
 }
 
@@ -233,7 +234,7 @@ function executeStepNode(agents: Record<string, AgentEntry>) {
 
     // Sync current graph-state plan → planStorage before each step.
     // Always overwrite so storage reflects the latest statuses from graph state.
-    const planId = `active_plan`;
+    const planId = state.planId;
     planStorage.syncFromGraphState(planId, plan);
 
     // Snapshot step fingerprint (text + status + notes) before invoke so we
@@ -253,9 +254,11 @@ function executeStepNode(agents: Record<string, AgentEntry>) {
     try {
       // Each subgraph invocation gets its own thread (required by checkpointer)
       const subConfig = createThreadConfig();
-      const result = await agent.graph.invoke(
-        { messages: [new HumanMessage(stepPrompt)] },
-        subConfig,
+      const result: any = await planStorage.withActivePlan(planId, () =>
+        agent.graph.invoke(
+          { messages: [new HumanMessage(stepPrompt)] },
+          subConfig,
+        ),
       );
 
       const lastMsg = result.messages[result.messages.length - 1];
@@ -385,10 +388,12 @@ export async function createPlanningFlow(options: PlanningFlowOptions) {
   const planRecursionLimit = 100; // plan can have many steps
 
   const compileOptions: {
-    checkpointer?: MemorySaver;
+    checkpointer?: BaseCheckpointSaver;
   } = {};
-  if (useCheckpointer) {
+  if (useCheckpointer === true) {
     compileOptions.checkpointer = new MemorySaver();
+  } else if (useCheckpointer && typeof useCheckpointer === "object") {
+    compileOptions.checkpointer = useCheckpointer;
   }
 
   const compiled = graph.compile(compileOptions);

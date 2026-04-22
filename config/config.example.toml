@@ -4,12 +4,12 @@
 # ============================================================
 # LLM Configuration
 # ============================================================
-# api_type controls which provider to use. Supported values:
-#   openai, anthropic, azure, bedrock, ollama, google, groq, mistral, deepseek, xai
+# api_type 使用 LangChain 原生 provider 名称。常见值：
+#   openai, anthropic, azure_openai, bedrock, ollama, google-genai, groq, mistralai, deepseek, xai
 # Provider packages are loaded on demand — install the one you need:
 #   npm install @langchain/anthropic   (for anthropic)
 #   npm install @langchain/aws         (for bedrock)
-#   npm install @langchain/google-genai (for google)
+#   npm install @langchain/google-genai (for google-genai)
 #   npm install @langchain/ollama      (for ollama)
 #   npm install @langchain/groq        (for groq)
 
@@ -45,11 +45,21 @@ temperature = 0.0
 
 # --- Azure OpenAI ---
 # [llm]
-# api_type = "azure"
+# api_type = "azure_openai"
 # model = "gpt-4o"
 # base_url = "https://your-endpoint.openai.azure.com/openai/deployments/your-deployment"
 # api_key = "your-azure-key"
 # api_version = "2024-08-01-preview"
+
+# --- Qwen / 通义千问（通过 OpenAI 兼容接口） ---
+# 不需要自定义 provider，继续使用 openai 即可。
+# [llm]
+# api_type = "openai"
+# model = "qwen-plus"
+# base_url = "https://your-qwen-compatible-base-url"
+# api_key = "your-model-studio-key"
+# max_tokens = 4096
+# temperature = 0.0
 
 # Per-agent LLM overrides (optional)
 # [llm.manus]

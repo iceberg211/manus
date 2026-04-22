@@ -4,6 +4,13 @@ import Markdown from "react-markdown";
 import type { ChatMessage } from "../types.js";
 import { ToolCallCard } from "./ToolCallCard.js";
 
+const EMPTY_STATE_HINTS = [
+  "List files in the current directory",
+  "Create a Python script and run it",
+  "Search the web for LangGraph docs",
+  "Help me analyze some data",
+];
+
 function StreamingDots() {
   return (
     <span className="inline-flex gap-1 ml-1">
@@ -35,7 +42,15 @@ function Avatar({ role }: { role: string }) {
   );
 }
 
-export function MessageList({ messages, loading }: { messages: ChatMessage[]; loading: boolean }) {
+export function MessageList({
+  messages,
+  loading,
+  onSuggestionClick,
+}: {
+  messages: ChatMessage[];
+  loading: boolean;
+  onSuggestionClick: (text: string) => void;
+}) {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -63,8 +78,12 @@ export function MessageList({ messages, loading }: { messages: ChatMessage[]; lo
           <p className="text-lg font-medium text-text">OpenManus</p>
           <p className="text-sm mt-1 mb-6">AI Agent powered by LangGraph</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-md w-full">
-            {["List files in the current directory", "Create a Python script and run it", "Search the web for LangGraph docs", "Help me analyze some data"].map((hint) => (
-              <button key={hint} className="px-3 py-2 text-xs text-text-secondary bg-surface border border-border rounded-lg hover:bg-surface-2 transition-colors cursor-pointer text-left">
+            {EMPTY_STATE_HINTS.map((hint) => (
+              <button
+                key={hint}
+                onClick={() => onSuggestionClick(hint)}
+                className="px-3 py-2 text-xs text-text-secondary bg-surface border border-border rounded-lg hover:bg-surface-2 transition-colors cursor-pointer text-left"
+              >
                 {hint}
               </button>
             ))}

@@ -16,6 +16,12 @@ export function useChat() {
   const [activeThreadId, setActiveThreadId] = useState<string | undefined>();
   const threadIdRef = useRef<string | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
+  const pendingThreadTitleRef = useRef<string | undefined>(undefined);
+
+  const cancelInFlight = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+  }, []);
 
   const addMessage = useCallback((msg: Omit<ChatMessage, "id" | "timestamp">) => {
     setMessages((prev) => [...prev, { ...msg, id: nextId(), timestamp: Date.now() }]);
@@ -76,9 +82,17 @@ export function useChat() {
       // Update thread list
       setThreads((prev) => {
         const exists = prev.find((t) => t.id === threadId);
-        if (exists) return prev.map((t) => t.id === threadId ? { ...t, messageCount: t.messageCount + 1 } : t);
-        return [{ id: threadId, title: "New conversation", createdAt: Date.now(), messageCount: 1 }, ...prev];
+        const title = pendingThreadTitleRef.current ?? "New conversation";
+        if (exists) {
+          return prev.map((t) =>
+            t.id === threadId
+              ? { ...t, title: t.title === "New conversation" ? title : t.title, messageCount: t.messageCount + 1 }
+              : t,
+          );
+        }
+        return [{ id: threadId, title, createdAt: Date.now(), messageCount: 1 }, ...prev];
       });
+      pendingThreadTitleRef.current = undefined;
       setLoading(false);
     },
   });
@@ -86,40 +100,66 @@ export function useChat() {
   callbacksRef.current.onThinking = (content: string) => updateLastAssistant(content);
 
   const send = useCallback(async (text: string) => {
+    cancelInFlight();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     addMessage({ role: "user", content: text });
     setLoading(true);
     addMessage({ role: "assistant", content: "" });
 
-    // Update thread title from first message
     if (!threadIdRef.current) {
-      const title = text.length > 40 ? text.slice(0, 40) + "..." : text;
-      setThreads((prev) => {
-        if (prev.length > 0 && prev[0].title === "New conversation") {
-          return [{ ...prev[0], title }, ...prev.slice(1)];
-        }
-        return prev;
-      });
+      pendingThreadTitleRef.current =
+        text.length > 40 ? text.slice(0, 40) + "..." : text;
     }
 
-    await sendChat(text, threadIdRef.current, callbacksRef.current);
-  }, [addMessage]);
+    try {
+      await sendChat(
+        text,
+        threadIdRef.current,
+        callbacksRef.current,
+        controller.signal,
+      );
+    } finally {
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+      }
+    }
+  }, [addMessage, cancelInFlight]);
 
   const resume = useCallback(async (answer: string) => {
     if (!interrupt) return;
+    cancelInFlight();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     addMessage({ role: "user", content: answer });
     setInterrupt(null);
     setLoading(true);
     addMessage({ role: "assistant", content: "" });
-    await resumeChat(interrupt.threadId, answer, callbacksRef.current);
-  }, [interrupt, addMessage]);
+    try {
+      await resumeChat(
+        interrupt.threadId,
+        answer,
+        callbacksRef.current,
+        controller.signal,
+      );
+    } finally {
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+      }
+    }
+  }, [interrupt, addMessage, cancelInFlight]);
 
   const newChat = useCallback(() => {
+    cancelInFlight();
     setMessages([]);
     setLoading(false);
     setInterrupt(null);
     threadIdRef.current = undefined;
+    pendingThreadTitleRef.current = undefined;
     setActiveThreadId(undefined);
-  }, []);
+  }, [cancelInFlight]);
 
   const switchThread = useCallback((threadId: string) => {
     // For now just reset — full thread restore needs server-side getState

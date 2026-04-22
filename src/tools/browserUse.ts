@@ -204,7 +204,8 @@ class BrowserManager {
         try {
           const element = await session.get_dom_element_by_index(params.index);
           const page = await this.getPage();
-          await page.selectOption(element.xpath, { label: params.text });
+          await page.selectOption(`xpath=${element.xpath}`, { label: params.text });
+          await this.refreshDom();
           return `Selected '${params.text}' from dropdown at index ${params.index}`;
         } catch (e: any) {
           return `Error: ${e.message}`;

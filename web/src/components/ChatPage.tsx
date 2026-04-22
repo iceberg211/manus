@@ -24,7 +24,7 @@ export function ChatPage() {
           <span className="text-xs text-muted bg-surface-2 px-2 py-0.5 rounded">Agent</span>
         </div>
 
-        <MessageList messages={messages} loading={loading} />
+        <MessageList messages={messages} loading={loading} onSuggestionClick={send} />
         <ChatInput onSend={send} disabled={loading} />
       </div>
 

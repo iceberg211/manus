@@ -18,6 +18,7 @@
  * This is a major upgrade.
  */
 import { MemorySaver, InMemoryStore } from "@langchain/langgraph";
+import type { BaseCheckpointSaver } from "@langchain/langgraph";
 import type { RunnableConfig } from "@langchain/core/runnables";
 import { randomUUID } from "crypto";
 
@@ -29,6 +30,11 @@ export { MemorySaver, InMemoryStore };
  */
 export function createDevCheckpointer(): MemorySaver {
   return new MemorySaver();
+}
+
+interface LoggerLike {
+  info?: (msg: string) => void;
+  warn?: (meta: unknown, msg?: string) => void;
 }
 
 /**
@@ -54,6 +60,28 @@ export async function createProdCheckpointer(connectionString: string) {
     throw new Error(
       `Failed to create PostgresSaver. Install: npm install @langchain/langgraph-checkpoint-postgres\n${e.message}`
     );
+  }
+}
+
+/**
+ * 根据环境变量选择默认 checkpointer。
+ *
+ * - 设置了 LANGGRAPH_CHECKPOINT_PG：优先使用 PostgresSaver
+ * - 未设置或初始化失败：回退到 MemorySaver（开发用）
+ */
+export async function resolveDefaultCheckpointer(
+  logger?: LoggerLike,
+): Promise<boolean | BaseCheckpointSaver> {
+  const pgUrl = process.env.LANGGRAPH_CHECKPOINT_PG;
+  if (!pgUrl) return true;
+
+  try {
+    const cp = await createProdCheckpointer(pgUrl);
+    logger?.info?.("Using PostgresSaver for checkpointing");
+    return cp;
+  } catch (e: any) {
+    logger?.warn?.({ err: e.message }, "PostgresSaver init failed, falling back to MemorySaver");
+    return true;
   }
 }
 

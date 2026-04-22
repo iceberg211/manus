@@ -4,10 +4,11 @@ import type { BaseCheckpointSaver } from "@langchain/langgraph";
 import { createInterface } from "readline";
 
 import { createManusAgent } from "./graphs/manus.js";
+import { ensureConfigLoaded } from "./config/index.js";
 import { browserManager } from "./tools/browserUse.js";
 import { bashSession } from "./tools/bash.js";
 import { cleanupCrawler } from "./tools/crawl4ai.js";
-import { createThreadConfig, createProdCheckpointer } from "./config/persistence.js";
+import { createThreadConfig, resolveDefaultCheckpointer } from "./config/persistence.js";
 import { logger } from "./utils/logger.js";
 
 /**
@@ -20,17 +21,7 @@ import { logger } from "./utils/logger.js";
  * 需要先安装：npm install @langchain/langgraph-checkpoint-postgres
  */
 async function resolveCheckpointer(): Promise<boolean | BaseCheckpointSaver> {
-  const pgUrl = process.env.LANGGRAPH_CHECKPOINT_PG;
-  if (!pgUrl) return true; // MemorySaver fallback
-
-  try {
-    const cp = await createProdCheckpointer(pgUrl);
-    logger.info("Using PostgresSaver for checkpointing");
-    return cp;
-  } catch (e: any) {
-    logger.warn({ err: e.message }, "PostgresSaver init failed, falling back to MemorySaver");
-    return true;
-  }
+  return resolveDefaultCheckpointer(logger);
 }
 
 /** Prompt user for input (for HITL resume). */
@@ -180,6 +171,8 @@ async function runInvoke(prompt: string, checkpointer: boolean | BaseCheckpointS
 }
 
 async function main() {
+  await ensureConfigLoaded();
+
   const args = process.argv.slice(2);
   const mode = args.find((a) => a.startsWith("--"));
   const prompt =

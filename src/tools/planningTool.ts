@@ -18,6 +18,7 @@
  */
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { AsyncLocalStorage } from "async_hooks";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -57,6 +58,15 @@ const STATUS_MARKS: Record<StepStatus, string> = {
 export class PlanStorage {
   private plans = new Map<string, Plan>();
   private activePlanId: string | null = null;
+  private contextPlanId = new AsyncLocalStorage<string>();
+
+  private resolvePlanId(planId?: string): string | null {
+    return planId || this.contextPlanId.getStore() || this.activePlanId;
+  }
+
+  async withActivePlan<T>(planId: string, fn: () => Promise<T>): Promise<T> {
+    return this.contextPlanId.run(planId, fn);
+  }
 
   create(planId: string, title: string, steps: string[]): string {
     if (this.plans.has(planId)) {
@@ -71,7 +81,6 @@ export class PlanStorage {
       steps: steps.map((s) => ({ text: s, status: "not_started" as const, notes: "" })),
     };
     this.plans.set(planId, plan);
-    this.activePlanId = planId;
     return `Plan created successfully with ID: ${planId}\n\n${this.formatPlan(plan)}`;
   }
 
@@ -116,7 +125,7 @@ export class PlanStorage {
   }
 
   get(planId?: string): string {
-    const id = planId || this.activePlanId;
+    const id = this.resolvePlanId(planId);
     if (!id) return "Error: No active plan. Please specify a plan_id or set an active plan.";
     const plan = this.plans.get(id);
     if (!plan) return `Error: No plan found with ID: ${id}`;
@@ -136,7 +145,7 @@ export class PlanStorage {
     stepStatus?: StepStatus,
     stepNotes?: string
   ): string {
-    const id = planId || this.activePlanId;
+    const id = this.resolvePlanId(planId);
     if (!id) return "Error: No active plan. Please specify a plan_id or set an active plan.";
     const existing = this.plans.get(id);
     if (!existing) return `Error: No plan found with ID: ${id}`;
@@ -190,7 +199,7 @@ export class PlanStorage {
 
   /** Get raw plan data (for integration with planning graph state). */
   getPlan(planId?: string): Plan | null {
-    const id = planId || this.activePlanId;
+    const id = this.resolvePlanId(planId);
     if (!id) return null;
     return this.plans.get(id) ?? null;
   }
@@ -222,7 +231,6 @@ export class PlanStorage {
       })),
     };
     this.plans.set(planId, plan);
-    this.activePlanId = planId;
   }
 
   get activeId(): string | null {

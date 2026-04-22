@@ -48,6 +48,12 @@ export const PlanState = Annotation.Root({
     default: () => null,
   }),
 
+  /** 当前计划的稳定 ID，用于隔离 planningTool 的存储命名空间。 */
+  planId: Annotation<string>({
+    reducer: (_prev, next) => next,
+    default: () => "",
+  }),
+
   /** Index of the step currently being executed. -1 = no active step. */
   currentStepIndex: Annotation<number>({
     reducer: (_prev, next) => next,

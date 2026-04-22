@@ -11,14 +11,21 @@ npm install
 # 复制配置文件，填入你的 API Key
 cp config/config.example.toml config/config.toml
 
+# 或复制环境变量示例
+cp .env.example .env
+
 # 运行（默认使用 config.toml 中的 LLM 配置）
 npx tsx src/index.ts "帮我列出当前目录的文件"
 ```
 
-也可以通过环境变量直接运行（跳过 config.toml）：
+也可以通过环境变量直接运行。当前版本里，环境变量会覆盖默认 LLM 配置：
 
 ```bash
-OPENAI_API_KEY=sk-... npx tsx src/index.ts "你的任务"
+LLM_API_TYPE=openai \
+LLM_MODEL=gpt-4o \
+LLM_BASE_URL=https://api.openai.com/v1 \
+LLM_API_KEY=sk-... \
+npx tsx src/index.ts "你的任务"
 ```
 
 ## 运行模式
@@ -45,18 +52,20 @@ npx tsx src/mcp/server.ts
 
 ## 多模型支持
 
-通过 LangChain `initChatModel` 统一管理，支持 20+ LLM provider。修改 `config/config.toml` 中的 `api_type` 即可切换：
+通过 LangChain `initChatModel` 统一管理，支持 20+ LLM provider。`api_type` 建议直接使用 LangChain 原生 provider 名称：
 
 | api_type | Provider | 安装 |
 |----------|----------|------|
 | `openai` | OpenAI | 已内置 |
 | `anthropic` | Anthropic Claude | `npm install @langchain/anthropic` |
 | `bedrock` | AWS Bedrock | `npm install @langchain/aws` |
-| `google` | Google Gemini | `npm install @langchain/google-genai` |
+| `google-genai` | Google Gemini | `npm install @langchain/google-genai` |
 | `ollama` | Ollama (本地) | `npm install @langchain/ollama` |
-| `azure` | Azure OpenAI | 已内置 |
+| `azure_openai` | Azure OpenAI | 已内置 |
 | `groq` | Groq | `npm install @langchain/groq` |
 | `deepseek` | DeepSeek | `npm install @langchain/deepseek` |
+
+项目内部会把配置组合成 LangChain 原生的 `provider:model` 格式，再交给 `initChatModel()` 处理，不再维护自定义 provider 映射。对于 OpenAI 兼容接口的模型服务，继续使用 `openai` provider 即可，通义千问就是这种接法。
 
 每个 Agent 可以使用不同的模型：
 
@@ -68,6 +77,25 @@ model = "gpt-4o"
 [llm.data]
 api_type = "anthropic"
 model = "claude-sonnet-4-20250514"
+```
+
+通义千问示例：
+
+```bash
+LLM_API_TYPE=openai \
+LLM_MODEL=qwen-plus \
+LLM_BASE_URL=https://your-qwen-compatible-base-url \
+LLM_API_KEY=your-model-studio-key \
+npx tsx src/index.ts "你好"
+```
+
+如果你想沿用 `OPENAI_*` 变量名也可以，项目会兼容：
+
+```bash
+OPENAI_MODEL=qwen-plus \
+OPENAI_BASE_URL=https://your-qwen-compatible-base-url \
+OPENAI_API_KEY=your-model-studio-key \
+npx tsx src/index.ts "你好"
 ```
 
 ## 工具

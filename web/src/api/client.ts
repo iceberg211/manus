@@ -18,20 +18,34 @@ type SSECallback = {
 export async function sendChat(
   message: string,
   threadId: string | undefined,
-  callbacks: SSECallback
+  callbacks: SSECallback,
+  signal?: AbortSignal,
 ): Promise<void> {
-  const resp = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, threadId }),
-  });
+  let resp: Response;
+  try {
+    resp = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, threadId }),
+      signal,
+    });
+  } catch (e: any) {
+    if (e?.name === "AbortError") return;
+    callbacks.onError(e?.message ?? "Network error");
+    return;
+  }
 
   if (!resp.ok || !resp.body) {
     callbacks.onError(`HTTP ${resp.status}`);
     return;
   }
 
-  await processSSEStream(resp.body, callbacks);
+  try {
+    await processSSEStream(resp.body, callbacks);
+  } catch (e: any) {
+    if (e?.name === "AbortError") return;
+    callbacks.onError(e?.message ?? "Stream error");
+  }
 }
 
 /**
@@ -40,20 +54,34 @@ export async function sendChat(
 export async function resumeChat(
   threadId: string,
   answer: string,
-  callbacks: SSECallback
+  callbacks: SSECallback,
+  signal?: AbortSignal,
 ): Promise<void> {
-  const resp = await fetch("/api/chat/resume", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ threadId, answer }),
-  });
+  let resp: Response;
+  try {
+    resp = await fetch("/api/chat/resume", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ threadId, answer }),
+      signal,
+    });
+  } catch (e: any) {
+    if (e?.name === "AbortError") return;
+    callbacks.onError(e?.message ?? "Network error");
+    return;
+  }
 
   if (!resp.ok || !resp.body) {
     callbacks.onError(`HTTP ${resp.status}`);
     return;
   }
 
-  await processSSEStream(resp.body, callbacks);
+  try {
+    await processSSEStream(resp.body, callbacks);
+  } catch (e: any) {
+    if (e?.name === "AbortError") return;
+    callbacks.onError(e?.message ?? "Stream error");
+  }
 }
 
 /** Parse an SSE stream and dispatch callbacks. */

@@ -14,7 +14,7 @@
  */
 import { initChatModel } from "langchain/chat_models/universal";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { getConfig, type LLMSettings } from "./index.js";
+import { ensureConfigLoaded } from "./index.js";
 import { logger } from "../utils/logger.js";
 
 /**
@@ -23,7 +23,7 @@ import { logger } from "../utils/logger.js";
  * @param configName — 对应 config.toml 中 [llm.xxx] 段名。默认 "default"。
  */
 export async function createLLM(configName?: string): Promise<BaseChatModel> {
-  const config = getConfig();
+  const config = await ensureConfigLoaded();
   const settings = config.llm[configName ?? "default"] ?? config.llm.default;
 
   if (!settings) {
@@ -32,13 +32,11 @@ export async function createLLM(configName?: string): Promise<BaseChatModel> {
 
   logger.debug({ apiType: settings.api_type, model: settings.model, configName }, "Creating LLM");
 
-  // initChatModel 支持 "provider:model" 格式自动路由
-  // 也支持 modelProvider 参数显式指定
-  const modelProvider = mapApiTypeToProvider(settings.api_type);
-  const modelName = settings.model;
+  // 使用 LangChain 原生的 "provider:model" 约定，让 provider 路由由 LangChain 处理。
+  // 对于千问这类 OpenAI 兼容接口，api_type=openai，model=qwen-plus 即可。
+  const modelName = resolveModelIdentifier(settings.api_type, settings.model);
 
   const model = await initChatModel(modelName, {
-    modelProvider,
     temperature: settings.temperature,
     maxTokens: settings.max_tokens,
     // provider-specific 字段透传
@@ -51,24 +49,15 @@ export async function createLLM(configName?: string): Promise<BaseChatModel> {
 }
 
 /**
- * 将 config.toml 中的 api_type 映射到 initChatModel 的 modelProvider。
+ * 组合 LangChain 原生的 "provider:model" 标识。
  *
- * initChatModel 的 provider 名见 MODEL_PROVIDER_CONFIG:
- * openai, anthropic, azure_openai, google, google-genai, google-vertexai,
- * ollama, bedrock, bedrock_converse, groq, mistralai, deepseek, xai, ...
+ * 约定：
+ * - 如果 model 已经带 provider 前缀，直接透传
+ * - 否则当 api_type 存在时，拼成 "api_type:model"
+ * - 千问 / 其他 OpenAI 兼容接口：api_type=openai
  */
-function mapApiTypeToProvider(apiType: string): string | undefined {
-  const map: Record<string, string> = {
-    openai: "openai",
-    azure: "azure_openai",
-    anthropic: "anthropic",
-    bedrock: "bedrock_converse",
-    google: "google-genai",
-    ollama: "ollama",
-    groq: "groq",
-    mistral: "mistralai",
-    deepseek: "deepseek",
-  };
-  const type = (apiType || "openai").toLowerCase();
-  return map[type] ?? type; // 未知类型直接透传，initChatModel 会尝试匹配
+function resolveModelIdentifier(apiType: string, model: string): string {
+  if (model.includes(":")) return model;
+  const provider = apiType.trim();
+  return provider ? `${provider}:${model}` : model;
 }

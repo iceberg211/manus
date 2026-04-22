@@ -9,7 +9,7 @@
  * Improvement S-3: Path boundary check — all file operations validate that
  * the target path is within the configured workspace root.
  */
-import { readFile, writeFile, stat, access, realpath, readdir } from "fs/promises";
+import { readFile, writeFile, stat, access, realpath, readdir, unlink } from "fs/promises";
 import { resolve, dirname, basename, join, relative } from "path";
 import { execSync } from "child_process";
 import { SANDBOX_CLIENT } from "../sandbox/docker.js";
@@ -36,6 +36,7 @@ export function shellQuote(s: string): string {
 export interface FileOperator {
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
+  deleteFile(path: string): Promise<void>;
   isDirectory(path: string): Promise<boolean>;
   exists(path: string): Promise<boolean>;
   /**
@@ -133,6 +134,10 @@ export class LocalFileOperator implements FileOperator {
     await writeFile(path, content, { encoding: this.encoding });
   }
 
+  async deleteFile(path: string): Promise<void> {
+    await unlink(path);
+  }
+
   async isDirectory(path: string): Promise<boolean> {
     try {
       const s = await stat(path);
@@ -219,6 +224,11 @@ export class SandboxFileOperator implements FileOperator {
   async writeFile(path: string, content: string): Promise<void> {
     await this.ensureSandbox();
     await SANDBOX_CLIENT.writeFile(path, content);
+  }
+
+  async deleteFile(path: string): Promise<void> {
+    await this.ensureSandbox();
+    await SANDBOX_CLIENT.runCommand(`rm -f ${shellQuote(path)}`);
   }
 
   async isDirectory(path: string): Promise<boolean> {

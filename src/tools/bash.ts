@@ -211,14 +211,15 @@ export const bash = tool(
   {
     name: "bash",
     description: `Execute a bash command in the terminal.
-* Long running commands: For commands that may run indefinitely, it should be run in the background and the output should be redirected to a file, e.g. command = \`python3 app.py > server.log 2>&1 &\`.
-* Interactive: If a bash command returns exit code \`-1\`, this means the process is not yet finished. The assistant must then send a second call to terminal with an empty \`command\` (which will retrieve any additional logs), or it can send additional text (set \`command\` to the text) to STDIN of the running process, or it can send command=\`ctrl+c\` to interrupt the process.
-* Timeout: If a command execution result says "Command timed out. Sending SIGINT to the process", the assistant should retry running the command in the background.`,
+* Commands run in a persistent bash session, so \`cd\` and environment variables are preserved across calls.
+* Long running commands should be started in the background with output redirected to a file, e.g. \`python3 app.py > server.log 2>&1 &\`.
+* This tool does not support interactive stdin streaming or shell job control. Do not send empty commands or \`ctrl+c\`; use \`restart=true\` to reset the session if needed.
+* If a command times out, rerun it in the background or restart the session.`,
     schema: z.object({
       command: z
         .string()
         .describe(
-          "The bash command to execute. Can be empty to view additional logs when previous exit code is `-1`. Can be `ctrl+c` to interrupt the currently running process."
+          "The bash command to execute in the persistent shell session."
         ),
       restart: z
         .boolean()

@@ -17,7 +17,8 @@ import { HumanMessage } from "@langchain/core/messages";
 import { Command } from "@langchain/langgraph";
 
 import { createManusAgent } from "../src/graphs/manus.js";
-import { createThreadConfig } from "../src/config/persistence.js";
+import { ensureConfigLoaded } from "../src/config/index.js";
+import { createThreadConfig, resolveDefaultCheckpointer } from "../src/config/persistence.js";
 import { AGENT_CARD } from "../src/a2a/server.js";
 import { logger } from "../src/utils/logger.js";
 import { processStreamChunk, writeSSE } from "./sse.js";
@@ -32,9 +33,20 @@ app.use("/api/*", cors({ origin: ["http://localhost:5173", "http://localhost:300
 let agentPromise: ReturnType<typeof createManusAgent> | null = null;
 function getAgent() {
   if (!agentPromise) {
-    agentPromise = createManusAgent();
+    agentPromise = (async () => {
+      await ensureConfigLoaded();
+      const checkpointer = await resolveDefaultCheckpointer(logger);
+      return createManusAgent({ checkpointer });
+    })();
   }
   return agentPromise;
+}
+
+function getInterruptValues(state: any): any[] {
+  if (!state?.tasks) return [];
+  return Object.values(state.tasks)
+    .flatMap((t: any) => t.interrupts ?? [])
+    .map((i: any) => i.value);
 }
 
 // Store thread configs for resume
@@ -79,22 +91,17 @@ app.post("/api/chat", async (c) => {
 
       // Check for HITL interrupt
       const state = await agent.getState(config);
-      if (state.tasks) {
-        const interrupts = Object.values(state.tasks)
-          .flatMap((t: any) => t.interrupts ?? [])
-          .map((i: any) => i.value);
-
-        if (interrupts.length > 0) {
-          await writeSSE(stream, {
-            event: "interrupt",
-            data: {
-              threadId,
-              question: interrupts[0]?.question ?? "Agent needs your input",
-              context: interrupts[0]?.context,
-            },
-          });
-          return;
-        }
+      const interrupts = getInterruptValues(state);
+      if (interrupts.length > 0) {
+        await writeSSE(stream, {
+          event: "interrupt",
+          data: {
+            threadId,
+            question: interrupts[0]?.question ?? "Agent needs your input",
+            context: interrupts[0]?.context,
+          },
+        });
+        return;
       }
 
       await writeSSE(stream, { event: "done", data: { threadId } });
@@ -139,21 +146,17 @@ app.post("/api/chat/resume", async (c) => {
 
       // Check for another interrupt
       const state = await agent.getState(thread);
-      if (state.tasks) {
-        const interrupts = Object.values(state.tasks)
-          .flatMap((t: any) => t.interrupts ?? [])
-          .map((i: any) => i.value);
-
-        if (interrupts.length > 0) {
-          await writeSSE(stream, {
-            event: "interrupt",
-            data: {
-              threadId,
-              question: interrupts[0]?.question ?? "Agent needs your input",
-            },
-          });
-          return;
-        }
+      const interrupts = getInterruptValues(state);
+      if (interrupts.length > 0) {
+        await writeSSE(stream, {
+          event: "interrupt",
+          data: {
+            threadId,
+            question: interrupts[0]?.question ?? "Agent needs your input",
+            context: interrupts[0]?.context,
+          },
+        });
+        return;
       }
 
       await writeSSE(stream, { event: "done", data: { threadId } });

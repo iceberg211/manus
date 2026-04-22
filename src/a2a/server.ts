@@ -15,7 +15,8 @@
 import { HumanMessage } from "@langchain/core/messages";
 import { Command } from "@langchain/langgraph";
 import { createManusAgent } from "../graphs/manus.js";
-import { createThreadConfig } from "../config/persistence.js";
+import { ensureConfigLoaded } from "../config/index.js";
+import { createThreadConfig, resolveDefaultCheckpointer } from "../config/persistence.js";
 import { logger } from "../utils/logger.js";
 import { randomUUID } from "crypto";
 
@@ -82,6 +83,25 @@ class TaskStore {
   list(): A2ATask[] {
     return [...this.tasks.values()];
   }
+
+  latestForContext(contextId: string): A2ATask | undefined {
+    return [...this.tasks.values()]
+      .filter((task) => task.contextId === contextId)
+      .sort((a, b) => b.createdAt - a.createdAt)[0];
+  }
+
+  pendingForContext(contextId: string): A2ATask | undefined {
+    return [...this.tasks.values()]
+      .filter(
+        (task) =>
+          task.contextId === contextId && task.status === "input_required",
+      )
+      .sort((a, b) => b.createdAt - a.createdAt)[0];
+  }
+
+  delete(id: string): void {
+    this.tasks.delete(id);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -141,6 +161,10 @@ export const AGENT_CARD: AgentCard = {
 export class A2AServer {
   private taskStore = new TaskStore();
   private agent: Awaited<ReturnType<typeof createManusAgent>> | null = null;
+  private readonly retentionMs = Math.max(
+    60_000,
+    Number(process.env.A2A_RETENTION_MS ?? 24 * 60 * 60 * 1000),
+  );
   /**
    * Map stable contextId → LangGraph thread_id so multiple invokes with the
    * same contextId resume the same thread. Without this, every call would be a
@@ -150,18 +174,19 @@ export class A2AServer {
 
   private async getAgent() {
     if (!this.agent) {
-      // HITL requires a checkpointer.
-      this.agent = await createManusAgent({ checkpointer: true });
+      await ensureConfigLoaded();
+      const checkpointer = await resolveDefaultCheckpointer(logger);
+      this.agent = await createManusAgent({ checkpointer });
     }
     return this.agent;
   }
 
   private threadIdFor(contextId: string): string {
-    let threadId = this.contextThreads.get(contextId);
-    if (!threadId) {
-      threadId = randomUUID();
-      this.contextThreads.set(contextId, threadId);
-    }
+    const existing = this.contextThreads.get(contextId);
+    if (existing) return existing;
+
+    const threadId = randomUUID();
+    this.contextThreads.set(contextId, threadId);
     return threadId;
   }
 
@@ -171,9 +196,9 @@ export class A2AServer {
     config: ReturnType<typeof createThreadConfig>,
   ): Promise<string | null> {
     const state = await (agent as any).getState(config);
-    const tasks = state?.tasks as
-      | Array<{ interrupts?: Array<{ value?: any }> }>
-      | undefined;
+    const tasks = Object.values(state?.tasks ?? {}) as Array<{
+      interrupts?: Array<{ value?: any }>;
+    }>;
     if (!tasks) return null;
     for (const t of tasks) {
       for (const i of t.interrupts ?? []) {
@@ -187,6 +212,33 @@ export class A2AServer {
     return null;
   }
 
+  private cleanupExpiredState(): void {
+    const now = Date.now();
+    const tasks = this.taskStore.list();
+    const activeContexts = new Set(
+      tasks
+        .filter((task) => task.status === "pending" || task.status === "running" || task.status === "input_required")
+        .map((task) => task.contextId),
+    );
+
+    for (const task of tasks) {
+      const terminalAt = task.completedAt ?? task.createdAt;
+      const isTerminal = task.status === "completed" || task.status === "failed";
+      if (isTerminal && now - terminalAt > this.retentionMs) {
+        this.taskStore.delete(task.id);
+      }
+    }
+
+    for (const [contextId] of this.contextThreads) {
+      if (activeContexts.has(contextId)) continue;
+      const latest = this.taskStore.latestForContext(contextId);
+      const terminalAt = latest?.completedAt ?? latest?.createdAt ?? 0;
+      if (!latest || now - terminalAt > this.retentionMs) {
+        this.contextThreads.delete(contextId);
+      }
+    }
+  }
+
   /**
    * Handle an A2A invoke request.
    *
@@ -198,7 +250,7 @@ export class A2AServer {
    * interrupts via ask_human; the caller should invoke again with `resume`.
    */
   async invoke(
-    query: string,
+    query = "",
     contextId?: string,
     resume?: string,
   ): Promise<{
@@ -208,9 +260,22 @@ export class A2AServer {
     taskId: string;
     contextId: string;
   }> {
+    this.cleanupExpiredState();
+
     const ctx = contextId ?? randomUUID();
-    const task = this.taskStore.create(ctx, query);
-    this.taskStore.update(task.id, { status: "running" });
+    const task =
+      resume !== undefined
+        ? this.taskStore.pendingForContext(ctx)
+        : this.taskStore.create(ctx, query);
+
+    if (!task) {
+      throw new Error(`No interrupted task found for contextId '${ctx}'`);
+    }
+
+    this.taskStore.update(task.id, {
+      status: "running",
+      pendingQuestion: undefined,
+    });
 
     try {
       const agent = await this.getAgent();
@@ -227,6 +292,7 @@ export class A2AServer {
         this.taskStore.update(task.id, {
           status: "input_required",
           pendingQuestion,
+          output: undefined,
         });
         return {
           isTaskComplete: false,
@@ -246,6 +312,7 @@ export class A2AServer {
       this.taskStore.update(task.id, {
         status: "completed",
         output: content,
+        pendingQuestion: undefined,
         completedAt: Date.now(),
       });
 
@@ -257,7 +324,12 @@ export class A2AServer {
         contextId: ctx,
       };
     } catch (e: any) {
-      this.taskStore.update(task.id, { status: "failed", output: e.message });
+      this.taskStore.update(task.id, {
+        status: "failed",
+        output: e.message,
+        pendingQuestion: undefined,
+        completedAt: Date.now(),
+      });
       throw e;
     }
   }
@@ -269,11 +341,13 @@ export class A2AServer {
 
   /** List all tasks. */
   listTasks(): A2ATask[] {
+    this.cleanupExpiredState();
     return this.taskStore.list();
   }
 
   /** Get a specific task. */
   getTask(id: string): A2ATask | undefined {
+    this.cleanupExpiredState();
     return this.taskStore.get(id);
   }
 }
